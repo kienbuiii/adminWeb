@@ -1,10 +1,10 @@
 // apiConfig.js
 const apiConfig = {
   // URL cơ sở của API - thay đổi theo môi trường
-  baseURL: 'https://20.2.67.63' || 'http://localhost:3000',
+  baseURL: 'http://20.2.67.63' || 'http://localhost:3000',
   
   // Socket URL
-  socketURL: 'https://20.2.67.63' || 'http://localhost:3000',
+  socketURL: 'http://20.2.67.63' || 'http://localhost:3000',
   
   headers: {
     'Content-Type': 'application/json',
