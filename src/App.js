@@ -18,8 +18,7 @@ function App() {
     <Router>
       <AdminSocketProvider>
         <Routes>
-          <Route path="/" element={<Navigate to="/admin/login" replace />} />
-          <Route path="/admin/login" element={<Login />} />
+          <Route path="/login" element={<Login />} />
 
           <Route path="/admin" element={
             <PrivateRoute>
@@ -30,11 +29,12 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="users" element={<Users />} />
             <Route path="users/:id" element={<UserDetail />} />
+            
             <Route path="chat/:userId" element={<AdminChat />} />
             <Route path="reports" element={<AdminReports />} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/admin/login" replace />} />
+          <Route path="/" element={<Navigate to="/admin" replace />} />
         </Routes>
       </AdminSocketProvider>
       <ToastContainer 
