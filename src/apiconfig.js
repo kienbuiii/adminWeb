@@ -1,8 +1,8 @@
 // apiConfig.js
 const apiConfig = {
-  // Đổi thành relative URL để dùng proxy
-  baseURL: '/api',
-  socketURL: 'http://20.2.67.63',  // Socket vẫn giữ nguyên vì không thể proxy WebSocket
+  // Sử dụng trực tiếp URL của API
+  baseURL: 'http://20.2.67.63',
+  socketURL: 'http://20.2.67.63',
   
   headers: {
     'Content-Type': 'application/json',
