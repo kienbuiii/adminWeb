@@ -1,8 +1,8 @@
 // apiConfig.js
 const apiConfig = {
   // Sử dụng trực tiếp URL của API
-  baseURL: 'http://20.2.67.63',
-  socketURL: 'http://20.2.67.63',
+  baseURL: 'https://moral-simple-lioness.ngrok-free.app'||'http://localhost:3000',
+  socketURL: 'https://moral-simple-lioness.ngrok-free.app',
   
   headers: {
     'Content-Type': 'application/json',
