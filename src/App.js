@@ -11,6 +11,9 @@ import AdminChat from './pages/AdminChat';
 import { AdminSocketProvider } from './context/AdminSocketContext';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import Notifications from './pages/Notifications';
+import Header from './components/layout/Header';
+import ReportDetail from './pages/ReportDetail';
 
 
 function App() {
@@ -32,6 +35,8 @@ function App() {
             
             <Route path="chat/:userId" element={<AdminChat />} />
             <Route path="reports" element={<AdminReports />} />
+            <Route path="reports/:id" element={<ReportDetail />} />
+            <Route path="notifications" element={<Notifications />} />
           </Route>
 
           <Route path="/" element={<Navigate to="/admin" replace />} />

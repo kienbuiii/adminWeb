@@ -1,8 +1,8 @@
 // apiConfig.js
 const apiConfig = {
   // Sử dụng trực tiếp URL của API
-  baseURL: 'https://moral-simple-lioness.ngrok-free.app'||'http://localhost:3000',
-  socketURL: 'https://moral-simple-lioness.ngrok-free.app',
+  baseURL: 'https://www.adminftravel.xyz'||'http://localhost:3000',
+  socketURL: 'https://www.adminftravel.xyz',
   
   headers: {
     'Content-Type': 'application/json',
@@ -46,11 +46,13 @@ const apiConfig = {
     allUsers: () => '/api/admin/users/all',
     userDetail: (id) => `/api/admin/users/detail/${id}`,
     userPosts: (id) => `/api/admin/users/${id}/posts`,
+    userTravelPosts: (id) => `/api/admin/users/${id}/travel`,
     getStats: () => '/api/admin/dashboard-stats',
     searchUsers: () => '/api/admin/users/search',
     disableUser: (id) => `/api/admin/users/${id}/disable`,
     enableUser: (id) => `/api/admin/users/${id}/enable`,
     deleteUser: (id) => `/api/admin/users/${id}`,
+    postDetail: (id) => `/api/admin/posts/${id}`,
     
     // Report endpoints
     reports: {
@@ -58,6 +60,15 @@ const apiConfig = {
       adminUpdate: (id) => `/api/reports/admin/${id}`,
       adminDelete: (id) => `/api/reports/admin/${id}`,
       adminDetail: (id) => `/api/reports/admin/${id}`
+    },
+    
+    // Thêm notifications endpoints
+    notifications: {
+      getAll: '/api/admin/notifications',
+      markAllRead: '/api/admin/notifications/mark-all-read',
+      markRead: (id) => `/api/admin/notifications/${id}/mark-read`,
+      delete: (id) => `/api/admin/notifications/${id}`,
+      unreadCount: '/api/admin/notifications/unread-count'
     },
   },
 

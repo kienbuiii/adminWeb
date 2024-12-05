@@ -16,7 +16,6 @@ const Sidebar = () => {
   const menuItems = [
     { path: '/admin/dashboard', icon: MdDashboard, label: 'Dashboard' },
     { path: '/admin/users', icon: MdPeople, label: 'Quản lý Users' },
-    { path: '/admin/stats', icon: MdBarChart, label: 'Thống kê' },
     { path: '/admin/reports', icon: MdFlag, label: 'Báo cáo' },
     { path: '/admin/chat/:userId', icon: MdChat, label: 'Chat' },  // Changed path
    

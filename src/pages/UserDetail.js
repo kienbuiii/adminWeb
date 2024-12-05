@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import apiConfig from '../apiconfig';
-import { MdVerified, MdLocationOn, MdPhone, MdEmail, MdPerson } from 'react-icons/md';
+import { MdVerified, MdLocationOn, MdPhone, MdEmail, MdPerson, MdFavorite, MdFavoriteBorder, MdComment, MdVisibility, MdDateRange, MdImage, MdShare, MdArticle, MdTravelExplore } from 'react-icons/md';
 import UserActionMenu from './UserActionMenu';
 const UserDetail = () => {
   const { id } = useParams();
@@ -13,44 +13,28 @@ const UserDetail = () => {
   const [error, setError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState(null);
+  const [activeTab, setActiveTab] = useState('posts');
+  const [travelPosts, setTravelPosts] = useState([]);
+  const [travelLoading, setTravelLoading] = useState(true);
+  const [postsInitialized, setPostsInitialized] = useState(false);
+  const [travelInitialized, setTravelInitialized] = useState(false);
 
-  // Fetch cả user info và posts khi component mount
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch user info
-        const userResponse = await axios.post(
-          `${apiConfig.baseURL}${apiConfig.endpoints.userDetail(id)}`,
-          {},
-          { headers: apiConfig.headers }
-        );
-        setUser(userResponse.data.data);
-
-        // Fetch posts
-        await fetchUserPosts(1);
-      } catch (error) {
-        console.error('Error:', error);
-        setError('Không thể tải thông tin');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [id]);
-
-  const fetchUserPosts = async (page) => {
+  // Fetch regular posts
+  const fetchRegularPosts = async (page) => {
     try {
       setPostsLoading(true);
-      console.log('Fetching posts for user:', id, 'page:', page); // Debug log
-
+      apiConfig.initializeToken(); // Ensure token is set
+      
       const response = await axios.post(
         `${apiConfig.baseURL}${apiConfig.endpoints.userPosts(id)}`,
-        { page, limit: 5 },
+        { 
+          page, 
+          limit: 5,
+          sortBy: 'createdAt',
+          sortOrder: -1
+        },
         { headers: apiConfig.headers }
       );
-
-      console.log('Posts response:', response.data); // Debug log
 
       if (response.data.success) {
         setPosts(response.data.data.posts);
@@ -59,65 +43,273 @@ const UserDetail = () => {
       }
     } catch (error) {
       console.error('Error fetching posts:', error);
-      setError('Không thể tải bài viết');
+      if (error.response?.status === 401) {
+        setError('Phiên đăng nhập đã hết hạn');
+      } else {
+        setError('Không thể tải bài viết');
+      }
     } finally {
       setPostsLoading(false);
     }
   };
 
-  // Component hiển thị một bài viết
-  const PostCard = ({ post }) => (
-    <div className="bg-white rounded-lg shadow-md p-6 mb-4">
+  // Fetch travel posts
+  const fetchTravelPosts = async () => {
+    try {
+      setTravelLoading(true);
+      apiConfig.initializeToken(); // Ensure token is set
+      
+      const response = await axios.post(
+        `${apiConfig.baseURL}${apiConfig.endpoints.userTravelPosts(id)}`,
+        {
+          page: 1,
+          limit: 10
+        },
+        { headers: apiConfig.headers }
+      );
+
+      if (response.data.success) {
+        setTravelPosts(response.data.data.travelPosts);
+      }
+    } catch (error) {
+      console.error('Error fetching travel posts:', error);
+      if (error.response?.status === 401) {
+        setError('Phiên đăng nhập đã hết hạn');
+      } else {
+        setError('Không thể tải bài viết du lịch');
+      }
+    } finally {
+      setTravelLoading(false);
+    }
+  };
+
+  // Tách riêng useEffect cho việc fetch user detail
+  useEffect(() => {
+    const fetchUserDetail = async () => {
+      try {
+        setLoading(true);
+        apiConfig.initializeToken();
+        
+        const response = await axios.post(
+          `${apiConfig.baseURL}${apiConfig.endpoints.userDetail(id)}`,
+          {},
+          { headers: apiConfig.headers }
+        );
+
+        if (response.data.success) {
+          setUser(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+        setError('Không thể tải thông tin người dùng');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserDetail();
+  }, [id]);
+
+  // Thay thế 2 useEffect riêng lẻ bằng một useEffect duy nhất
+  useEffect(() => {
+    const initializeData = async () => {
+      if (!postsInitialized) {
+        await fetchRegularPosts(1);
+        setPostsInitialized(true);
+      }
+      if (!travelInitialized) {
+        await fetchTravelPosts();
+        setTravelInitialized(true);
+      }
+    };
+
+    initializeData();
+  }, [id]); // Chỉ chạy khi id thay đổi
+
+  // Cập nhật TabSelector để không gọi lại API
+  const TabSelector = () => (
+    <div className="flex justify-center space-x-6 mb-8">
+      <button
+        onClick={() => setActiveTab('posts')}
+        className={`group relative px-6 py-3 rounded-xl transition-all duration-300 ${
+          activeTab === 'posts' 
+            ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
+            : 'hover:bg-gray-100'
+        }`}
+      >
+        <div className="flex items-center space-x-3">
+          <MdArticle size={22} />
+          <span className="font-medium">Bài viết {posts.length > 0 && `(${posts.length})`}</span>
+        </div>
+        {activeTab === 'posts' && (
+          <div className="absolute -bottom-1 left-1/2 w-12 h-1 bg-white rounded-full transform -translate-x-1/2"></div>
+        )}
+      </button>
+      <button
+        onClick={() => setActiveTab('travel')}
+        className={`group relative px-6 py-3 rounded-xl transition-all duration-300 ${
+          activeTab === 'travel' 
+            ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg'
+            : 'hover:bg-gray-100'
+        }`}
+      >
+        <div className="flex items-center space-x-3">
+          <MdTravelExplore size={22} />
+          <span className="font-medium">Du lịch {travelPosts.length > 0 && `(${travelPosts.length})`}</span>
+        </div>
+        {activeTab === 'travel' && (
+          <div className="absolute -bottom-1 left-1/2 w-12 h-1 bg-white rounded-full transform -translate-x-1/2"></div>
+        )}
+      </button>
+    </div>
+  );
+
+  // New component for travel post card with proper null checking
+  const TravelPostCard = ({ post }) => (
+    <div className="bg-white rounded-lg shadow-md p-6 mb-4 hover:shadow-lg transition-shadow duration-200">
       <div className="flex items-center mb-4">
         <img
-          src={post.user.avatar}
-          alt={post.user.username}
+          src={post.author?.avatar || '/default-avatar.png'}
+          alt={post.author?.username || 'User'}
           className="w-10 h-10 rounded-full mr-3"
         />
-        <div>
-          <div className="font-medium">{post.user.username}</div>
-          <div className="text-sm text-gray-500">
+        <div className="flex-1">
+          <div className="flex items-center">
+            <span className="font-medium">{post.author?.username || 'Unknown User'}</span>
+            {post.author?.verified && (
+              <MdVerified className="text-blue-500 ml-1" size={18} />
+            )}
+          </div>
+          <div className="flex items-center text-sm text-gray-500">
+            <MdDateRange className="mr-1" size={16} />
             {new Date(post.createdAt).toLocaleDateString('vi-VN', {
               year: 'numeric',
               month: 'long',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
+              day: 'numeric'
             })}
           </div>
         </div>
       </div>
 
+      <h3 className="text-xl font-semibold mb-2">{post.title}</h3>
+      
+      {post.location && (
+        <div className="flex items-center text-gray-600 mb-3 bg-blue-50 px-3 py-2 rounded-lg">
+          <MdLocationOn className="h-5 w-5 mr-1 text-blue-500" />
+          <span>{post.location}</span>
+        </div>
+      )}
+
       <div className="mb-4">
-        <p className="text-gray-800 whitespace-pre-wrap">{post.content}</p>
+        <p className="text-gray-800 line-clamp-3">{post.content}</p>
       </div>
 
       {post.images && post.images.length > 0 && (
-        <div className={`grid ${post.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} gap-2 mb-4`}>
-          {post.images.map((image, index) => (
-            <img
-              key={index}
-              src={image}
-              alt={`Ảnh ${index + 1}`}
-              className="rounded-lg w-full h-64 object-cover"
-              onClick={() => window.open(image, '_blank')}
-            />
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {post.images.slice(0, 4).map((image, index) => (
+            <div key={index} className="relative group">
+              <img
+                src={image}
+                alt={`Ảnh ${index + 1}`}
+                className="rounded-lg w-full h-48 object-cover cursor-pointer"
+                onClick={() => window.open(image, '_blank')}
+              />
+              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center">
+                <MdImage className="text-white opacity-0 group-hover:opacity-100 transition-all duration-200" size={24} />
+              </div>
+            </div>
           ))}
         </div>
       )}
 
-      <div className="flex items-center text-sm text-gray-500 space-x-6">
-        <div className="flex items-center">
-          <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-          </svg>
-          <span>{post.likes?.length || 0} lượt thích</span>
+      <div className="flex items-center text-sm text-gray-500 pt-4 border-t">
+        <div className="flex space-x-6">
+          <div className="flex items-center hover:text-red-500 transition-colors duration-200 cursor-pointer">
+            <MdFavorite className="w-5 h-5 mr-1" />
+            <span>{post.likes?.length || 0}</span>
+          </div>
+          <div className="flex items-center hover:text-blue-500 transition-colors duration-200 cursor-pointer">
+            <MdComment className="w-5 h-5 mr-1" />
+            <span>{post.comments?.length || 0}</span>
+          </div>
+          <div className="flex items-center hover:text-purple-500 transition-colors duration-200 cursor-pointer">
+            <MdVisibility className="w-5 h-5 mr-1" />
+            <span>{post.views || 0} lượt xem</span>
+          </div>
         </div>
-        <div className="flex items-center">
-          <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-          <span>{post.comments?.length || 0} bình luận</span>
+      </div>
+    </div>
+  );
+
+  // Component hiển thị một bài viết
+  const PostCard = ({ post }) => (
+    <div className="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden">
+      <div className="p-6">
+        {/* Header với avatar và username */}
+        <div className="flex items-center space-x-4 mb-6">
+          <div className="relative">
+            <img
+              src={post.user.avatar || '/default-avatar.png'}
+              alt={post.user.username}
+              className="w-12 h-12 rounded-full object-cover ring-2 ring-offset-2 ring-blue-500"
+            />
+            {post.user.verified && (
+              <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1">
+                <MdVerified className="text-white" size={14} />
+              </div>
+            )}
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center">
+              <span className="font-medium">{post.user.username}</span>
+              {post.user.verified && (
+                <MdVerified className="text-blue-500 ml-1" size={18} />
+              )}
+            </div>
+            <div className="flex items-center text-sm text-gray-500">
+              <MdDateRange className="mr-1" size={16} />
+              {new Date(post.createdAt).toLocaleDateString('vi-VN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Content với typography improvements */}
+        <p className="text-gray-800 text-lg leading-relaxed mb-6">{post.content}</p>
+
+        {/* Images grid với hover effects */}
+        {post.images?.length > 0 && (
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            {post.images.map((image, index) => (
+              <div key={index} className="relative group rounded-xl overflow-hidden">
+                <img
+                  src={image}
+                  alt={`Post image ${index + 1}`}
+                  className="w-full h-64 object-cover transform transition-transform duration-300 group-hover:scale-110"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Actions bar với animated interactions */}
+        <div className="flex items-center justify-start pt-4 border-t border-gray-100">
+          <div className="flex space-x-8">
+            <button className="flex items-center space-x-2 text-gray-600 hover:text-red-500 transition-colors duration-200">
+              <MdFavorite className="w-6 h-6" />
+              <span className="font-medium">{post.likes?.length || 0}</span>
+            </button>
+            <div className="flex items-center hover:text-blue-500 transition-colors duration-200 cursor-pointer">
+              <MdComment className="w-6 h-6 mr-1" />
+              <span className="font-medium">{post.comments?.length || 0} bình luận</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -130,7 +322,7 @@ const UserDetail = () => {
     return (
       <div className="flex justify-center space-x-2 mt-6">
         <button
-          onClick={() => fetchUserPosts(currentPage - 1)}
+          onClick={() => fetchRegularPosts(currentPage - 1)}
           disabled={currentPage === 1}
           className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
         >
@@ -140,7 +332,7 @@ const UserDetail = () => {
         {[...Array(pagination.totalPages)].map((_, index) => (
           <button
             key={index}
-            onClick={() => fetchUserPosts(index + 1)}
+            onClick={() => fetchRegularPosts(index + 1)}
             className={`px-4 py-2 border rounded-md ${
               currentPage === index + 1
                 ? 'bg-blue-500 text-white'
@@ -152,7 +344,7 @@ const UserDetail = () => {
         ))}
 
         <button
-          onClick={() => fetchUserPosts(currentPage + 1)}
+          onClick={() => fetchRegularPosts(currentPage + 1)}
           disabled={currentPage === pagination.totalPages}
           className="px-4 py-2 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
         >
@@ -160,6 +352,15 @@ const UserDetail = () => {
         </button>
       </div>
     );
+  };
+
+  // Thêm hàm refresh cho trường hợp cần tải lại dữ liệu
+  const refreshData = () => {
+    if (activeTab === 'posts') {
+      fetchRegularPosts(currentPage);
+    } else {
+      fetchTravelPosts();
+    }
   };
 
   if (loading) {
@@ -187,140 +388,173 @@ const UserDetail = () => {
   }
 
   return (
-    <div className="h-full">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white shadow-sm rounded-lg overflow-hidden">
-          {/* Header Profile */}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="bg-white shadow-sm rounded-lg overflow-hidden">
+        {/* Header Profile */}
 <div className="relative">
-  <div className="h-48 bg-gradient-to-r from-blue-500 to-purple-500"></div>
-  <UserActionMenu userId={user._id} username={user.username} />
-  <div className="absolute -bottom-16 left-8">
-    <img
-      src={user.avatar}
-      alt={user.username}
-      className="h-32 w-32 rounded-full border-4 border-white shadow-lg object-cover"
-    />
+  {/* Cover photo với overlay gradient và blur effect */}
+  <div className="h-64 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 relative overflow-hidden">
+    <div className="absolute inset-0 backdrop-blur-sm bg-black/10"></div>
+  </div>
+  
+  {/* User avatar với border gradient */}
+  <div className="absolute -bottom-20 left-1/2 transform -translate-x-1/2 md:left-8 md:transform-none">
+    <div className="p-1 rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500">
+      <img
+        src={user.avatar}
+        alt={user.username}
+        className="h-36 w-36 rounded-full border-4 border-white object-cover"
+      />
+    </div>
+  </div>
+  
+  {/* Action menu với glass effect */}
+  <div className="absolute top-4 right-4">
+    <UserActionMenu userId={user._id} username={user.username} />
   </div>
 </div>
 
-          {/* User Info */}
-          <div className="pt-20 px-8 pb-8">
-            {/* Basic Info */}
-            <div className="flex items-center mb-4">
-              <h1 className="text-2xl font-bold mr-2">{user.username}</h1>
-              {user.xacMinhDanhTinh && (
-                <MdVerified className="text-blue-500 h-6 w-6" title="Đã xác minh" />
+        {/* User Info */}
+        <div className="pt-20 px-8 pb-8">
+          {/* Basic Info */}
+          <div className="flex items-center mb-4">
+            <h1 className="text-2xl font-bold mr-2">{user.username}</h1>
+            {user.xacMinhDanhTinh && (
+              <MdVerified className="text-blue-500 h-6 w-6" title="Đã xác minh" />
+            )}
+          </div>
+
+          {/* Contact Info */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="space-y-3">
+              <div className="flex items-center text-gray-600">
+                <MdEmail className="h-5 w-5 mr-2" />
+                <span>{user.email}</span>
+              </div>
+              {user.sdt && (
+                <div className="flex items-center text-gray-600">
+                  <MdPhone className="h-5 w-5 mr-2" />
+                  <span>{user.sdt}</span>
+                </div>
+              )}
+              {user.diachi && (
+                <div className="flex items-center text-gray-600">
+                  <MdLocationOn className="h-5 w-5 mr-2" />
+                  <span>{user.diachi}</span>
+                </div>
               )}
             </div>
 
-            {/* Contact Info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div className="space-y-3">
-                <div className="flex items-center text-gray-600">
-                  <MdEmail className="h-5 w-5 mr-2" />
-                  <span>{user.email}</span>
+            <div className="space-y-3">
+              {user.sex && (
+                <div className="text-gray-600">
+                  <span className="font-medium">Giới tính:</span> {user.sex}
                 </div>
-                {user.sdt && (
-                  <div className="flex items-center text-gray-600">
-                    <MdPhone className="h-5 w-5 mr-2" />
-                    <span>{user.sdt}</span>
-                  </div>
-                )}
-                {user.diachi && (
-                  <div className="flex items-center text-gray-600">
-                    <MdLocationOn className="h-5 w-5 mr-2" />
-                    <span>{user.diachi}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-3">
-                {user.sex && (
-                  <div className="text-gray-600">
-                    <span className="font-medium">Giới tính:</span> {user.sex}
-                  </div>
-                )}
-                {user.tuoi && (
-                  <div className="text-gray-600">
-                    <span className="font-medium">Tuổi:</span> {user.tuoi}
-                  </div>
-                )}
-                {user.tinhtranghonnhan && (
-                  <div className="text-gray-600">
-                    <span className="font-medium">Tình trạng hôn nhân:</span> {user.tinhtranghonnhan}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-xl font-bold">{user.postsCount || 0}</div>
-                <div className="text-gray-500">Bài viết</div>
-              </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-xl font-bold">{user.followersCount || 0}</div>
-                <div className="text-gray-500">Người theo dõi</div>
-              </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-xl font-bold">{user.followingCount || 0}</div>
-                <div className="text-gray-500">Đang theo dõi</div>
-              </div>
-            </div>
-
-            {/* Bio */}
-            {user.bio && (
-              <div className="mb-6">
-                <h2 className="text-lg font-semibold mb-2">Giới thiệu</h2>
-                <p className="text-gray-600">{user.bio}</p>
-              </div>
-            )}
-
-            {/* Additional Info */}
-            {(user.nationality || user.home) && (
-              <div className="border-t pt-6">
-                <h2 className="text-lg font-semibold mb-4">Thông tin thêm</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {user.nationality && (
-                    <div className="text-gray-600">
-                      <span className="font-medium">Quốc tịch:</span> {user.nationality}
-                    </div>
-                  )}
-                  {user.home && (
-                    <div className="text-gray-600">
-                      <span className="font-medium">Quê quán:</span> {user.home}
-                    </div>
-                  )}
+              )}
+              {user.tuoi && (
+                <div className="text-gray-600">
+                  <span className="font-medium">Tuổi:</span> {user.tuoi}
                 </div>
-              </div>
-            )}
+              )}
+              {user.tinhtranghonnhan && (
+                <div className="text-gray-600">
+                  <span className="font-medium">Tình trạng hôn nhân:</span> {user.tinhtranghonnhan}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Phần hiển thị bài viết */}
-        <div className="mt-8">
-          <h2 className="text-2xl font-bold mb-6">Bài viết của người dùng</h2>
-          
-          {postsLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-            </div>
-          ) : posts.length > 0 ? (
-            <>
-              <div className="space-y-6">
-                {posts.map(post => (
-                  <PostCard key={post._id} post={post} />
-                ))}
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-6 mb-8">
+            <div className="backdrop-blur-md bg-white/30 border border-white/30 rounded-2xl p-6 shadow-xl hover:transform hover:scale-105 transition-all duration-300">
+              <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                {user.postsCount || 0}
               </div>
-              <Pagination />
-            </>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              Người dùng chưa có bài viết nào
+              <div className="text-gray-600 font-medium">Bài viết</div>
+            </div>
+            <div className="backdrop-blur-md bg-white/30 border border-white/30 rounded-2xl p-6 shadow-xl hover:transform hover:scale-105 transition-all duration-300">
+              <div className="text-2xl font-bold bg-gradient-to-r from-green-600 to-lime-600 bg-clip-text text-transparent">
+                {user.followersCount || 0}
+              </div>
+              <div className="text-gray-600 font-medium">Người theo dõi</div>
+            </div>
+            <div className="backdrop-blur-md bg-white/30 border border-white/30 rounded-2xl p-6 shadow-xl hover:transform hover:scale-105 transition-all duration-300">
+              <div className="text-2xl font-bold bg-gradient-to-r from-pink-600 to-red-600 bg-clip-text text-transparent">
+                {user.followingCount || 0}
+              </div>
+              <div className="text-gray-600 font-medium">Đang theo dõi</div>
+            </div>
+          </div>
+
+          {/* Bio */}
+          {user.bio && (
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold mb-2">Giới thiệu</h2>
+              <p className="text-gray-600">{user.bio}</p>
+            </div>
+          )}
+
+          {/* Additional Info */}
+          {(user.nationality || user.home) && (
+            <div className="border-t pt-6">
+              <h2 className="text-lg font-semibold mb-4">Thông tin thêm</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {user.nationality && (
+                  <div className="text-gray-600">
+                    <span className="font-medium">Quốc tịch:</span> {user.nationality}
+                  </div>
+                )}
+                {user.home && (
+                  <div className="text-gray-600">
+                    <span className="font-medium">Quê quán:</span> {user.home}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Phần hiển thị bài viết */}
+      <div className="mt-8">
+        <TabSelector />
+        
+        {activeTab === 'posts' ? (
+          <div className="space-y-6">
+            {postsLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+              </div>
+            ) : posts.length > 0 ? (
+              <>
+                {posts.map(post => (
+                  <PostCard key={post._id} post={post} />
+                ))}
+                <Pagination />
+              </>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                Người dùng chưa có bài viết nào
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {travelLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+              </div>
+            ) : travelPosts.length > 0 ? (
+              travelPosts.map(post => (
+                <TravelPostCard key={post._id} post={post} />
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                Người dùng chưa có bài viết du lịch nào
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

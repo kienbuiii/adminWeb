@@ -4,11 +4,12 @@ import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import apiConfig from '../apiconfig';
 import { toast } from 'react-toastify';
+import { useNavigate } from 'react-router-dom';
 
 const AdminReports = () => {
+  const navigate = useNavigate();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedReport, setSelectedReport] = useState(null);
   const [filters, setFilters] = useState({
     status: '',
   });
@@ -266,7 +267,7 @@ const AdminReports = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <button
-                    onClick={() => setSelectedReport(report)}
+                    onClick={() => navigate(`/admin/reports/${report._id}`)}
                     className="text-indigo-600 hover:text-indigo-900 mr-4"
                   >
                     Chi tiết
@@ -283,113 +284,6 @@ const AdminReports = () => {
           </tbody>
         </table>
       </div>
-
-      {/* Report detail modal */}
-      {selectedReport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h2 className="text-xl font-bold mb-4">Chi tiết báo cáo</h2>
-              
-              <div className="space-y-6">
-                {/* Người báo cáo */}
-                <div>
-                  <h3 className="font-medium text-gray-700 mb-2">Người báo cáo</h3>
-                  <div className="flex items-center">
-                    <img
-                      src={selectedReport.reporter?.avatar || '/default-avatar.png'}
-                      alt=""
-                      className="h-10 w-10 rounded-full object-cover"
-                    />
-                    <div className="ml-3">
-                      <p className="text-sm font-medium">{selectedReport.reporter?.username}</p>
-                      <p className="text-sm text-gray-500">{selectedReport.reporter?.email}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Người/Nội dung bị báo cáo */}
-                <div>
-                  <h3 className="font-medium text-gray-700 mb-2">Đối tượng bị báo cáo</h3>
-                  <div className="flex items-center">
-                    <img
-                      src={selectedReport.reportedItem?.avatar || '/default-avatar.png'}
-                      alt=""
-                      className="h-10 w-10 rounded-full object-cover"
-                    />
-                    <div className="ml-3">
-                      <p className="text-sm font-medium">
-                        {selectedReport.reportedItem?.username || selectedReport.reportedItem?.name}
-                      </p>
-                      {selectedReport.reportedItem?.title && (
-                        <p className="text-sm text-gray-500">{selectedReport.reportedItem.title}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Loại báo cáo và lý do */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="font-medium text-gray-700 mb-2">Loại báo cáo</h3>
-                    <p className="text-sm bg-gray-100 p-2 rounded">
-                      {selectedReport.itemType}
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-700 mb-2">Lý do</h3>
-                    <p className="text-sm bg-gray-100 p-2 rounded">
-                      {formatReason(selectedReport.reason)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Mô tả chi tiết */}
-                <div>
-                  <h3 className="font-medium text-gray-700 mb-2">Nội dung báo cáo</h3>
-                  <div className="mt-2 p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm">{selectedReport.description}</p>
-                  </div>
-                </div>
-
-                {/* Trạng thái */}
-                <div>
-                  <h3 className="font-medium text-gray-700 mb-2">Trạng thái</h3>
-                  <select
-                    value={selectedReport.status}
-                    onChange={(e) => handleStatusUpdate(selectedReport._id, e.target.value)}
-                    className="mt-2 block w-full px-3 py-2 border rounded-lg"
-                  >
-                    {Object.values(apiConfig.reportStatus).map(status => (
-                      <option key={status} value={status}>
-                        {status === 'pending' && 'Chờ xử lý'}
-                        {status === 'reviewing' && 'Đang xem xét'}
-                        {status === 'resolved' && 'Đã xử lý'}
-                        {status === 'rejected' && 'Từ chối'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end space-x-3">
-                <button
-                  onClick={() => setSelectedReport(null)}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                >
-                  Đóng
-                </button>
-                <button
-                  onClick={() => handleDelete(selectedReport._id)}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                >
-                  Xóa báo cáo
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
