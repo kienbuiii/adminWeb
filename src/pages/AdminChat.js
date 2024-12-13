@@ -1,222 +1,492 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import axios from 'axios';
-import { format, isValid, parseISO } from 'date-fns';
+import { useAdminSocket, useOnlineStatus } from '../context/AdminSocketContext';
+import { format, parseISO, isValid } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { useAdminSocket } from '../context/AdminSocketContext';
+import { MdSearch, MdVerified } from 'react-icons/md';
+import axios from 'axios';
 import apiConfig from '../apiconfig';
-import { MdSearch } from 'react-icons/md';
+import ImageUploader from '../components/ImageUploader';
 import debounce from 'lodash/debounce';
+import { IoSend, IoImageOutline } from 'react-icons/io5';
+import { BsEmojiSmile } from 'react-icons/bs';
+import { MdOutlineMarkUnreadChatAlt } from 'react-icons/md';
 
 const AdminChat = () => {
   // States
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [conversations, setConversations] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const { socket, connected } = useAdminSocket();
+  const [onlineStats, setOnlineStats] = useState({
+    totalOnline: 0,
+    verifiedCount: 0,
+    normalUserCount: 0
+  });
+
+  // Refs
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
-  const [adminId, setAdminId] = useState(null);
   const messagesContainerRef = useRef(null);
-  const [onlineUsers, setOnlineUsers] = useState(new Set());
-  const [lastActive, setLastActive] = useState({});
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [filters, setFilters] = useState({
-    role: '',
-    vohieuhoa: '',
-    verified: '',
-    gender: '',
-    isOnline: ''
-  });
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 10,
-    total: 0,
-    totalPages: 0,
-    hasNextPage: false,
-    hasPrevPage: false
-  });
-  const [sortOptions, setSortOptions] = useState({
-    sortBy: 'createdAt',
-    sortOrder: -1
-  });
-  const [unreadCounts, setUnreadCounts] = useState({});
 
-  // Get adminId on mount
-  useEffect(() => {
-    const storedAdminId = localStorage.getItem('adminId');
-    if (storedAdminId) {
-      setAdminId(storedAdminId);
-    } else {
-      console.error('No adminId found');
-      setError('Vui lòng đăng nhập lại');
+  // Socket Context
+  const { 
+    socket, 
+    connected, 
+    sendAdminMessage,
+    sendAdminImage,
+    sendAdminMultipleImages,
+    joinAdminChat, 
+    markMessagesAsRead,
+    emitTyping 
+  } = useAdminSocket();
+
+  const onlineUsers = useOnlineStatus();
+
+  // Di chuyển scrollToBottom lên đầu
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      const scrollHeight = messagesContainerRef.current.scrollHeight;
+      const height = messagesContainerRef.current.clientHeight;
+      const maxScrollTop = scrollHeight - height;
+      
+      messagesContainerRef.current.scrollTo({
+        top: maxScrollTop,
+        behavior: 'smooth'
+      });
     }
-  }, []);
+  };
 
-  // Fetch users
+  // Auto scroll when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom();
+    }
+  }, [messages]);
+
+  // Fetch users và online status
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Không tìm thấy token xác thực');
-      }
+      const [usersResponse, onlineUsersResponse] = await Promise.all([
+        axios.post(
+          `${apiConfig.baseURL}${apiConfig.endpoints.onlineUsers}`,
+          { search: searchTerm },
+          { headers: apiConfig.headers }
+        ),
+        axios.post(
+          `${apiConfig.baseURL}${apiConfig.endpoints.onlineUsers}`,
+          {},
+          { headers: apiConfig.headers }
+        )
+      ]);
 
-      const response = await axios({
-        method: 'post',
-        url: `${apiConfig.baseURL}${apiConfig.endpoints.allUsers()}`,
-        data: {
-          search: searchTerm || '',
-          sortBy: 'lastActive',
-          sortOrder: -1
-        },
-        headers: {
-          ...apiConfig.headers,
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      if (usersResponse.data.success && onlineUsersResponse.data.success) {
+        const allUsers = usersResponse.data.data.users;
+        const onlineUserIds = onlineUsersResponse.data.data.users.map(user => user._id);
+        
+        // Merge online status with users
+        const usersWithOnlineStatus = allUsers.map(user => ({
+          ...user,
+          isOnline: onlineUserIds.includes(user._id)
+        }));
 
-      if (response.data.success) {
-        const { users: responseUsers } = response.data.data;
-        setUsers(responseUsers);
-      } else {
-        throw new Error(response.data.message);
+        setUsers(usersWithOnlineStatus);
+        setOnlineStats(onlineUsersResponse.data.data.statistics);
       }
     } catch (error) {
-      console.error('Error fetching users:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-      
-      if (error.response?.status === 401) {
-        setError('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
-      } else {
-        setError('Không thể tải danh sách người dùng');
-      }
-      setUsers([]);
+      console.error('Error fetching users:', error);
+      setError('Không thể tải danh sách người dùng');
     } finally {
       setLoading(false);
     }
   };
 
-  // Add pagination controls
-  const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= pagination.totalPages) {
-      setPagination(prev => ({ ...prev, page: newPage }));
-      fetchUsers(newPage);
-    }
-  };
-
-  // Add filter handling
-  const handleFilterChange = (filterName, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [filterName]: value
-    }));
-    // Reset to first page when filters change
-    setPagination(prev => ({ ...prev, page: 1 }));
-    fetchUsers(1);
-  };
-
-  // Update useEffect for initial load and search
+  // Initial fetch
   useEffect(() => {
-    const delayedFetch = setTimeout(() => {
-      fetchUsers(1);
-    }, 300); // Debounce time for search
+    fetchUsers();
+  }, []);
 
-    return () => clearTimeout(delayedFetch);
-  }, [searchTerm, filters, sortOptions]);
+  // Fetch periodically
+  useEffect(() => {
+    const interval = setInterval(fetchUsers, 30000); // every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
 
-  // Add pagination controls to the UI
-  const renderPagination = () => (
-    <div className="flex justify-center items-center space-x-2 mt-4 pb-4">
-      <button
-        onClick={() => handlePageChange(pagination.page - 1)}
-        disabled={!pagination.hasPrevPage}
-        className={`px-3 py-1 rounded ${
-          pagination.hasPrevPage 
-            ? 'bg-blue-500 text-white hover:bg-blue-600' 
-            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-        }`}
-      >
-        Trước
-      </button>
-      <span className="text-sm text-gray-600">
-        Trang {pagination.page} / {pagination.totalPages}
-      </span>
-      <button
-        onClick={() => handlePageChange(pagination.page + 1)}
-        disabled={!pagination.hasNextPage}
-        className={`px-3 py-1 rounded ${
-          pagination.hasNextPage 
-            ? 'bg-blue-500 text-white hover:bg-blue-600' 
-            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-        }`}
-      >
-        Sau
-      </button>
-    </div>
-  );
+  // Handle search with debounce
+  useEffect(() => {
+    if (searchTerm !== '') {
+      const handler = setTimeout(() => {
+        fetchUsers();
+      }, 500);
+      return () => clearTimeout(handler);
+    }
+  }, [searchTerm]);
 
-  // Add filter controls to the UI (add this near the search input)
-  const renderFilters = () => (
-    <div className="flex flex-wrap gap-2 p-4 border-b border-gray-200">
-      <select
-        value={filters.role}
-        onChange={(e) => handleFilterChange('role', e.target.value)}
-        className="px-2 py-1 border rounded text-sm"
-      >
-        <option value="">Vai trò</option>
-        <option value="user">User</option>
-        <option value="admin">Admin</option>
-      </select>
-      
-      <select
-        value={filters.vohieuhoa}
-        onChange={(e) => handleFilterChange('vohieuhoa', e.target.value)}
-        className="px-2 py-1 border rounded text-sm"
-      >
-        <option value="">Trạng thái</option>
-        <option value="true">Vô hiệu hóa</option>
-        <option value="false">Hoạt động</option>
-      </select>
-      
-      <select
-        value={filters.verified}
-        onChange={(e) => handleFilterChange('verified', e.target.value)}
-        className="px-2 py-1 border rounded text-sm"
-      >
-        <option value="">Xác thực</option>
-        <option value="true">Đã xác thực</option>
-        <option value="false">Chưa xác thực</option>
-      </select>
-    </div>
-  );
+  // Enhance socket message handling
+  useEffect(() => {
+    if (!socket || !connected) return;
 
-  // Fetch conversations
-  const fetchConversations = async () => {
+    const handleNewMessage = (message) => {
+      if (selectedUser?._id === message.sender._id || 
+          selectedUser?._id === message.receiver) {
+        // Kiểm tra tin nhắn đã tồn tại chưa
+        setMessages(prev => {
+          const messageExists = prev.some(msg => 
+            msg._id === message._id || msg.tempId === message.tempId
+          );
+          if (messageExists) return prev;
+          return [...prev, message];
+        });
+        
+        scrollToBottom();
+        
+        // Tự động đánh dấu đã đọc tin nhắn từ user
+        if (!message.isAdminMessage) {
+          markMessagesAsRead(selectedUser._id);
+        }
+      }
+    };
+
+    const handleMessageSent = (message) => {
+      setMessages(prev => {
+        // Xóa tin nhắn tạm và thêm tin nhắn đã gửi
+        const filteredMessages = prev.filter(msg => msg.tempId !== message.tempId);
+        // Kiểm tra tin nhắn đã tồn tại chưa
+        const messageExists = filteredMessages.some(msg => msg._id === message._id);
+        if (messageExists) return filteredMessages;
+        return [...filteredMessages, {
+          ...message,
+          status: 'sent',
+          read: false
+        }];
+      });
+      scrollToBottom();
+    };
+
+    const handleMessageError = ({ error, tempId }) => {
+      setMessages(prev => prev.map(msg => 
+        msg.tempId === tempId 
+          ? { ...msg, status: 'error', error: error } 
+          : msg
+      ));
+    };
+
+    socket.on('receive_message', handleNewMessage);
+    socket.on('message_sent', handleMessageSent);
+    socket.on('message_error', handleMessageError);
+    socket.on('admin_typing_status', ({ isTyping }) => {
+      setIsTyping(isTyping);
+    });
+
+    return () => {
+      socket.off('receive_message', handleNewMessage);
+      socket.off('message_sent', handleMessageSent);
+      socket.off('message_error', handleMessageError);
+      socket.off('admin_typing_status');
+    };
+  }, [socket, connected, selectedUser, markMessagesAsRead]);
+
+  // Enhance message sending
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedUser) return;
+
+    const tempId = Date.now().toString();
+    const messageData = {
+      userId: selectedUser._id,
+      text: newMessage.trim(),
+      type: 'text',
+      adminId: localStorage.getItem('adminId'),
+      tempId
+    };
+
+    // Add optimistic message
+    const optimisticMessage = {
+      tempId,
+      _id: tempId,
+      content: newMessage.trim(),
+      sender: {
+        _id: localStorage.getItem('adminId'),
+        role: 'admin'
+      },
+      receiver: selectedUser._id,
+      createdAt: new Date().toISOString(),
+      type: 'text',
+      status: 'pending',
+      isAdminMessage: true
+    };
+
+    setMessages(prev => [...prev, optimisticMessage]);
+    setNewMessage('');
+    scrollToBottom();
+
     try {
-      const response = await axios.post(
-        `${apiConfig.baseURL}${apiConfig.endpoints.conversations()}`,
-        {},
-        { headers: apiConfig.headers }
-      );
-      setConversations(response.data.data);
-      setLoading(false);
+      const response = await sendAdminMessage(messageData);
+      // Cập nhật tin nhắn với thông tin từ server
+      setMessages(prev => prev.map(msg => 
+        msg.tempId === tempId ? { ...response, status: 'sent' } : msg
+      ));
     } catch (error) {
-      console.error('Error fetching conversations:', error);
-      setError('Không thể tải danh sách cuộc trò chuyện');
-      setLoading(false);
+      console.error('Error sending message:', error);
+      // Cập nhật trạng thái lỗi cho tin nhắn
+      setMessages(prev => prev.map(msg => 
+        msg.tempId === tempId 
+          ? { ...msg, status: 'error', error: error.message || 'Lỗi gửi tin nhắn' } 
+          : msg
+      ));
     }
   };
+
+  // Thêm hàm helper để xử lý URL Cloudinary
+  const getOptimizedImageUrl = (url) => {
+    if (!url) return '';
+    
+    // Kiểm tra nếu là URL Cloudinary
+    if (url.includes('cloudinary.com')) {
+      // Thêm các tham số tối ưu hình ảnh
+      const baseUrl = url.split('/upload/')[0];
+      const imageId = url.split('/upload/')[1];
+      return `${baseUrl}/upload/q_auto,f_auto/${imageId}`;
+    }
+    
+    return url;
+  };
+
+  // Cập nhật phần render message để xử lý ảnh
+  const renderMessage = (message) => {
+    const isAdmin = message.sender?.role === 'admin';
+    const messageStatus = message.status || 'sent';
+
+    return (
+      <div key={message._id || message.tempId} 
+           className={`flex ${isAdmin ? 'justify-end' : 'justify-start'} mb-3`}>
+        <div className={`max-w-[70%] flex items-end ${
+          isAdmin ? 'flex-row-reverse' : 'flex-row'
+        } space-x-2`}>
+          {!isAdmin && (
+            <img
+              src={selectedUser?.avatar || '/default-avatar.png'}
+              alt=""
+              className="w-8 h-8 rounded-full flex-shrink-0"
+            />
+          )}
+          <div>
+            <div className={`text-xs mb-1 ${
+              isAdmin ? 'text-right text-gray-500' : 'text-left text-gray-500'
+            }`}>
+              {isAdmin ? 'Admin' : selectedUser?.username}
+            </div>
+            
+            <div className={`relative px-4 py-2.5 rounded-2xl shadow-sm ${
+              isAdmin 
+                ? 'bg-[#0084ff] text-white' 
+                : 'bg-white text-gray-800'
+            } ${
+              isAdmin ? 'rounded-br-sm' : 'rounded-bl-sm'
+            }`}>
+              {message.type === 'image' ? (
+                <div className="relative">
+                  <img 
+                    src={getOptimizedImageUrl(message.content)}
+                    alt="Sent image"
+                    className="max-w-full rounded-lg cursor-pointer"
+                    onClick={() => window.open(message.content, '_blank')}
+                    onError={(e) => {
+                      console.error('Image loading error:', e);
+                      e.target.src = '/default-image.png'; // Fallback image
+                    }}
+                    loading="lazy"
+                  />
+                  {messageStatus === 'pending' && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              )}
+              
+              <div className={`flex items-center justify-end space-x-2 mt-1 text-xs ${
+                isAdmin ? 'text-blue-50' : 'text-gray-500'
+              }`}>
+                <span>{formatMessageTime(message.createdAt)}</span>
+                {messageStatus === 'pending' && (
+                  <span>Đang gửi...</span>
+                )}
+                {messageStatus === 'error' && (
+                  <span className="text-red-500">
+                    Lỗi gửi tin nhắn
+                    <button 
+                      onClick={() => handleResendMessage(message)}
+                      className="ml-2 text-blue-500 hover:underline"
+                    >
+                      Gửi lại
+                    </button>
+                  </span>
+                )}
+                {message.read && isAdmin && (
+                  <span className="text-blue-50">✓✓</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Move useEffect and useCallback hooks before any conditional returns
+  useEffect(() => {
+    if (!socket || !connected) return;
+
+    // Chỉ lắng nghe receive_message cho tin nhắn từ user
+    socket.on('receive_message', (message) => {
+      if (selectedUser?._id === message.sender._id) {
+        setMessages(prev => [...prev, message]);
+        scrollToBottom();
+        markMessagesAsRead(selectedUser._id);
+      }
+    });
+
+    // Xử lý message_sent cho tin nhắn của admin
+    socket.on('message_sent', (message) => {
+      // Xóa tin nhắn tạm (nếu có) và thêm tin nhắn đã được xác nhận
+      setMessages(prev => {
+        const filteredMessages = prev.filter(msg => msg.tempId !== message.tempId);
+        return [...filteredMessages, message];
+      });
+      scrollToBottom();
+    });
+
+    // Handle message errors
+    socket.on('message_error', ({ error, tempId }) => {
+      console.error('Message sending failed:', error);
+      // You could update the UI to show the error state of the message
+      setMessages(prev => prev.map(msg => 
+        msg.tempId === tempId 
+          ? { ...msg, error: true } 
+          : msg
+      ));
+    });
+
+    // Handle conversation updates
+    socket.on('conversation_updated', (update) => {
+      // Update the conversation list if needed
+      if (selectedUser?._id === update.senderId || 
+          selectedUser?._id === update.receiverId) {
+        // You might want to update the last message preview
+      }
+    });
+
+    socket.on('admin_typing_status', ({ isTyping }) => {
+      if (selectedUser) {
+        setIsTyping(isTyping);
+      }
+    });
+
+    socket.on('messages_marked_read_success', ({ userId }) => {
+      if (selectedUser?._id === userId) {
+        setMessages(prev => 
+          prev.map(msg => ({...msg, read: true}))
+        );
+      }
+    });
+
+    return () => {
+      socket.off('receive_message');
+      socket.off('message_sent');
+      socket.off('message_error');
+      socket.off('conversation_updated');
+      socket.off('admin_typing_status');
+      socket.off('messages_marked_read_success');
+    };
+  }, [socket, connected, selectedUser, markMessagesAsRead]);
+
+  // Move debouncedSearch before conditional returns
+  const debouncedSearch = useCallback(
+    debounce((term) => {
+      fetchUsers(term);
+    }, 500),
+    []
+  );
+
+  // Add useEffect to handle URL params
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const userId = urlParams.get('userId');
+    
+    if (userId) {
+      // Chỉ tìm user trong danh sách users hiện có
+      const user = users.find(u => u._id === userId);
+      if (user) {
+        setSelectedUser(user);
+        joinAdminChat(userId);
+        fetchChatHistory(userId);
+      }
+    }
+  }, [users]); // Add users to dependency array
+
+  // Update URL when selecting user
+  useEffect(() => {
+    if (selectedUser) {
+      const newUrl = `${window.location.pathname}?userId=${selectedUser._id}`;
+      window.history.pushState({ userId: selectedUser._id }, '', newUrl);
+    }
+  }, [selectedUser]);
+
+  // Handle popstate event (browser back/forward)
+  useEffect(() => {
+    const handlePopState = (event) => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const userId = urlParams.get('userId');
+      
+      if (userId) {
+        const user = users.find(u => u._id === userId);
+        if (user) {
+          handleUserSelect(user);
+        }
+      } else {
+        setSelectedUser(null);
+        setMessages([]);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [users]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">ĐĐang tải danh sách người dùng...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center text-red-500">
+          <p>{error}</p>
+          <button 
+            onClick={fetchUsers}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Thử lại
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Fetch chat history
   const fetchChatHistory = async (userId) => {
@@ -224,501 +494,49 @@ const AdminChat = () => {
       const response = await axios.post(
         `${apiConfig.baseURL}${apiConfig.endpoints.chatHistory(userId)}`,
         {},
-        { method:'POST',
-          headers: apiConfig.headers }
-      );
-      setMessages(response.data.data);
-      scrollToBottom();
-      
-      // Mark messages as read
-      await axios.patch(
-        `${apiConfig.baseURL}${apiConfig.endpoints.markRead(userId)}`,
-        {},
         { headers: apiConfig.headers }
       );
+
+      if (response.data.success) {
+        // Đảm bảo mỗi tin nhắn có đầy đủ thông tin về sender
+        const formattedMessages = response.data.data.map(message => ({
+          ...message,
+          sender: {
+            ...message.sender,
+            role: message.sender._id === localStorage.getItem('adminId') ? 'admin' : 'user'
+          }
+        }));
+        setMessages(formattedMessages);
+        scrollToBottom();
+        markMessagesAsRead(userId);
+      }
     } catch (error) {
       console.error('Error fetching chat history:', error);
       setError('Không thể tải tin nhắn');
     }
   };
 
- // Send message
-const handleSendMessage = async () => {
-  if (!newMessage.trim() || !selectedUser || !socket || !connected || !adminId) {
-      console.log('Validation failed:', {
-          message: newMessage,
-          selectedUser: !!selectedUser,
-          socket: !!socket,
-          connected,
-          adminId
-      });
-      return;
-  }
-
-  try {
-      // Đơn giản hóa cấu trúc message data
-      const messageData = {
-          adminId,
-          userId: selectedUser._id,
-          text: newMessage.trim(),
-          type: 'text'
-      };
-
-      console.log('Sending message data:', messageData);
-
-      // Emit sự kiện gửi tin nhắn qua socket
-      socket.emit('adminSendMessage', messageData);
-
-      // Thêm tin nhắn vào state local ngay lập tức để UI responsive
-      const localMessage = {
-          _id: Date.now().toString(), // temporary ID
-          content: newMessage.trim(),
-          sender: {
-              _id: adminId,
-              role: 'admin'
-          },
-          receiver: {
-              _id: selectedUser._id
-          },
-          createdAt: new Date().toISOString(),
-          type: 'text'
-      };
-
-      setMessages(prev => [...prev, localMessage]);
-      setNewMessage('');
-      scrollToBottom();
-
-  } catch (error) {
-      console.error('Error in handleSendMessage:', error);
-      setError('Không thể gửi tin nhắn');
-  }
-};
-  // Socket events
-useEffect(() => {
-  if (!socket || !connected) {
-      console.log('Socket not ready:', { socket: !!socket, connected });
-      return;
-  }
-
-  // Lắng nghe tin nhắn mới
-  socket.on('newMessage', (data) => {
-      console.log('Received new message:', data);
-      if (!data.message) return;
-      
-      const message = data.message;
-      if (selectedUser?._id === message.sender?._id || 
-          selectedUser?._id === message.receiver?._id) {
-          setMessages(prev => {
-              // Kiểm tra tin nhắn trùng lặp
-              const exists = prev.some(m => 
-                  m._id === message._id || 
-                  (m.content === message.content && 
-                   m.sender?._id === message.sender?._id && 
-                   Math.abs(new Date(m.createdAt) - new Date(message.createdAt)) < 1000)
-              );
-              if (exists) return prev;
-              return [...prev, message];
-          });
-          scrollToBottom();
-      }
-  });
-
-  // Lắng nghe xác nhận tin nhắn đã gửi
-  socket.on('messageSent', (data) => {
-      console.log('Message sent confirmation:', data);
-      if (!data.message) return;
-      
-      const message = data.message;
-      setMessages(prev => {
-          // Thay thế tin nhắn tạm thời bằng tin nhắn từ server
-          return prev.map(m => {
-              if (m.content === message.content && 
-                  m.sender?._id === message.sender?._id && 
-                  Math.abs(new Date(m.createdAt) - new Date(message.createdAt)) < 1000) {
-                  return message;
-              }
-              return m;
-          });
-      });
-  });
-
-  // Lắng nghe lỗi gửi tin nhắn
-  socket.on('messageError', (error) => {
-      console.error('Socket message error:', error);
-      setError(error.message || 'Không thể gửi tin nhắn');
-  });
-
-  return () => {
-      socket.off('newMessage');
-      socket.off('messageSent');
-      socket.off('messageError');
-  };
-}, [socket, connected, selectedUser]);
-  // Initial load
-  useEffect(() => {
-    fetchConversations();
-  }, []);
-
-  // Load chat history when user selected
-  useEffect(() => {
-    if (selectedUser?._id) {
-      fetchChatHistory(selectedUser._id);
-    }
-  }, [selectedUser]);
-
-  // Socket connection for real-time messages
-  useEffect(() => {
-    if (!socket || !connected) return;
-
-    // Lắng nghe tin nhắn mới
-    socket.on('receiveMessage', (message) => {
-      console.log('Received message:', message);
-      setMessages(prev => {
-        // Kiểm tra tin nhắn trùng lặp
-        const messageExists = prev.some(m => m._id === message._id);
-        if (messageExists) return prev;
-        
-        // Chuẩn hóa cấu trúc tin nhắn
-        const normalizedMessage = {
-          _id: message._id,
-          content: message.content || message.text,
-          sender: message.sender || message.senderId,
-          createdAt: message.createdAt,
-          type: message.type
-        };
-        
-        return [...prev, normalizedMessage];
-      });
-      scrollToBottom();
-    });
-
-    // Xử lý tin nhắn đã gửi
-    socket.on('messageSent', (message) => {
-      console.log('Message sent successfully:', message);
-      setMessages(prev => {
-        const normalizedMessage = {
-          _id: message._id,
-          content: message.content || message.text,
-          sender: message.sender || message.senderId,
-          createdAt: message.createdAt,
-          type: message.type
-        };
-        return [...prev, normalizedMessage];
-      });
-      scrollToBottom();
-    });
-
-    // Lắng nghe lỗi gửi tin nhắn
-    socket.on('messageError', (error) => {
-      console.error('Message error:', error);
-      setError('Không thể gửi tin nhn: ' + error.message);
-    });
-
-    // Lắng nghe trạng thái đang nhập
-    socket.on('userTyping', ({ userId: typingUserId }) => {
-      if (selectedUser && typingUserId === selectedUser._id) {
-        setIsTyping(true);
-      }
-    });
-
-    socket.on('userStopTyping', ({ userId: typingUserId }) => {
-      if (selectedUser && typingUserId === selectedUser._id) {
-        setIsTyping(false);
-      }
-    });
-
-    return () => {
-      socket.off('receiveMessage');
-      socket.off('messageSent');
-      socket.off('messageError');
-      socket.off('userTyping');
-      socket.off('userStopTyping');
-    };
-  }, [socket, connected, selectedUser]);
-
-  // Admin connection
-  useEffect(() => {
-    if (!socket || !connected || !adminId) return;
-
-    // Thông báo admin đã kết nối
-    socket.emit('adminConnected', adminId);
-    
-    // Yêu cầu trạng thái của tất cả users
-    users.forEach(user => {
-      socket.emit('getUserStatus', user._id);
-    });
-
-    console.log('Admin connected:', adminId);
-
-    return () => {
-      socket.emit('adminDisconnected', adminId);
-    };
-  }, [socket, connected, adminId, users]);
-
-  // Online status handling
-  useEffect(() => {
-    if (!socket || !connected) return;
-
-    socket.on('onlineUsers', (usersList) => {
-      console.log('Received online users:', usersList);
-      setOnlineUsers(new Set(usersList));
-    });
-
-    socket.on('userStatusChanged', ({ userId, isOnline, lastActive }) => {
-      console.log('User status changed:', { userId, isOnline, lastActive });
-      setOnlineUsers(prev => {
-        const newSet = new Set(prev);
-        if (isOnline) {
-          newSet.add(userId);
-        } else {
-          newSet.delete(userId);
-        }
-        return newSet;
-      });
-      
-      if (!isOnline) {
-        setLastActive(prev => ({
-          ...prev,
-          [userId]: lastActive
-        }));
-      }
-    });
-
-    socket.on('userStatus', ({ userId, isOnline, lastActive }) => {
-      if (!isOnline && lastActive) {
-        setLastActive(prev => ({
-          ...prev,
-          [userId]: lastActive
-        }));
-      }
-    });
-
-    return () => {
-      socket.off('onlineUsers');
-      socket.off('userStatusChanged');
-      socket.off('userStatus');
-    };
-  }, [socket, connected]);
-  // ... tiếp theo phần 2
-
   // Handle user selection
   const handleUserSelect = async (user) => {
-    try {
-      setSelectedUser(user);
-      setLoading(true);
-      setError(null);
-
-      if (socket && connected && adminId) {
-        // Join admin chat room
-        socket.emit('adminJoinChat', { 
-          adminId, 
-          userId: user._id 
-        });
-      }
-
-      // Fetch chat history
-      const response = await axios.get(
-        `${apiConfig.baseURL}/api/chat/admin/history/${user._id}`,
-        { headers: apiConfig.headers }
-      );
-
-      if (response.data.success) {
-        setMessages(response.data.messages);
-        scrollToBottom();
-        
-        // Mark messages as read
-        socket.emit('adminMarkRead', {
-          adminId,
-          userId: user._id
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching chat history:', error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
+    setSelectedUser(user);
+    joinAdminChat(user._id);
+    await fetchChatHistory(user._id);
   };
 
   // Handle typing
   const handleTyping = () => {
-    if (!socket || !connected || !selectedUser || !adminId) return;
-
-    socket.emit('adminTyping', { 
-      adminId, 
-      userId: selectedUser._id 
-    });
-
+    if (!selectedUser) return;
+    
+    emitTyping(selectedUser._id, true);
+    
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
     typingTimeoutRef.current = setTimeout(() => {
-      socket.emit('adminStopTyping', { 
-        adminId, 
-        userId: selectedUser._id 
-      });
+      emitTyping(selectedUser._id, false);
     }, 1000);
   };
-
-  // Utility functions
-  const scrollToBottom = () => {
-    if (messagesContainerRef.current) {
-      const container = messagesContainerRef.current;
-      container.scrollTop = container.scrollHeight;
-    }
-  };
-
-  // Helper functions
-  const formatMessageTime = (timestamp) => {
-    try {
-      if (!timestamp) return '';
-      
-      let date;
-      if (typeof timestamp === 'string') {
-        date = parseISO(timestamp);
-      } else if (timestamp instanceof Date) {
-        date = timestamp;
-      } else {
-        return '';
-      }
-
-      if (!isValid(date)) return '';
-      
-      return format(date, 'HH:mm', { locale: vi });
-    } catch (error) {
-      console.error('Error formatting message time:', error);
-      return '';
-    }
-  };
-
-  const formatLastActive = (timestamp) => {
-    try {
-      if (!timestamp) return 'Chưa hoạt động';
-      
-      let date;
-      if (typeof timestamp === 'string') {
-        date = parseISO(timestamp);
-      } else if (timestamp instanceof Date) {
-        date = timestamp;
-      } else {
-        return 'Chưa hoạt động';
-      }
-
-      if (!isValid(date)) return 'Chưa hoạt động';
-
-      const now = new Date();
-      const diffInMinutes = Math.floor((now - date) / 1000 / 60);
-
-      if (diffInMinutes < 1) return 'Vừa mới truy cập';
-      if (diffInMinutes < 60) return `${diffInMinutes} phút trước`;
-      if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} giờ trước`;
-      
-      return format(date, 'dd/MM/yyyy HH:mm', { locale: vi });
-    } catch (error) {
-      console.error('Error formatting last active:', error);
-      return 'Chưa hoạt động';
-    }
-  };
-
-  const renderMessages = () => {
-    return messages.map((message) => {
-      console.log('Message data:', {
-        id: message._id,
-        createdAt: message.createdAt,
-        content: message.content || message.text
-      });
-
-      return (
-        <div
-          key={message._id || Math.random()}
-          className={`flex ${
-            message.sender?._id === adminId || message.senderId?._id === adminId 
-              ? 'justify-end' 
-              : 'justify-start'
-          }`}
-        >
-          <div className={`flex items-end space-x-2 max-w-[70%] ${
-            message.sender?._id === adminId || message.senderId?._id === adminId 
-              ? 'flex-row-reverse space-x-reverse' 
-              : ''
-          }`}>
-            {(message.sender?._id !== adminId && message.senderId?._id !== adminId) && (
-              <img
-                src={selectedUser?.avatar || '/default-avatar.png'}
-                alt=""
-                className="w-6 h-6 rounded-full flex-shrink-0"
-                loading="lazy"
-              />
-            )}
-            <div className={`px-3 py-2 rounded-lg shadow-sm ${
-              message.sender?._id === adminId || message.senderId?._id === adminId
-                ? 'bg-blue-500 text-white'
-                : 'bg-white text-gray-800'
-            }`}>
-              <p className="text-sm whitespace-pre-wrap break-words">
-                {message.content || message.text || ''}
-              </p>
-              <span className={`text-[10px] mt-1 block ${
-                message.sender?._id === adminId || message.senderId?._id === adminId 
-                  ? 'text-blue-100' 
-                  : 'text-gray-400'
-              }`}>
-                {formatMessageTime(message.createdAt) || 'Vừa xong'}
-              </span>
-            </div>
-          </div>
-        </div>
-      );
-    });
-  };
-
-  // Search function with debounce
-  const debouncedSearch = useCallback(
-    debounce(async (searchTerm, searchFilters = filters) => {
-      if (!searchTerm.trim() && !Object.values(searchFilters).some(v => v !== '')) {
-        setSearchResults([]);
-        return;
-      }
-
-      try {
-        setIsSearching(true);
-        const response = await axios.post(
-          `${apiConfig.baseURL}${apiConfig.endpoints.searchUsers()}`,
-          {
-            searchTerm,
-            filters: searchFilters,
-            pagination: {
-              page: pagination.page,
-              limit: pagination.limit
-            },
-            sortOptions: {
-              field: 'lastActive',
-              order: 'desc'
-            }
-          },
-          { headers: apiConfig.headers }
-        );
-
-        if (response.data.success) {
-          const { users, pagination: newPagination } = response.data.data;
-          setSearchResults(users);
-          setPagination(prev => ({
-            ...prev,
-            total: newPagination.total,
-            totalPages: newPagination.totalPages
-          }));
-        }
-      } catch (error) {
-        console.error('Error searching users:', error);
-        setError('Không thể tìm kiếm người dùng');
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 500),
-    [filters, pagination.page, pagination.limit]
-  );
 
   // Handle search input change
   const handleSearchChange = (e) => {
@@ -727,211 +545,599 @@ useEffect(() => {
     debouncedSearch(value);
   };
 
-  // Render users list
+  // Format message time
+  const formatMessageTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = parseISO(timestamp);
+    return isValid(date) ? format(date, 'HH:mm', { locale: vi }) : '';
+  };
+
+  // Render messages
+  const renderMessages = () => {
+    return messages.map(message => {
+      // Kiểm tra chính xác role của người gửi
+      const isAdmin = message.sender?.role === 'admin' || message.sender?._id === localStorage.getItem('adminId');
+      const isPending = message.pending;
+      
+      return (
+        <div
+          key={message._id || message.tempId}
+          className={`flex ${isAdmin ? 'justify-end' : 'justify-start'} mb-3`}
+        >
+          <div className={`max-w-[70%] flex items-end ${
+            isAdmin ? 'flex-row-reverse' : 'flex-row'
+          } space-x-2`}>
+            {!isAdmin && (
+              <img
+                src={selectedUser?.avatar || '/default-avatar.png'}
+                alt=""
+                className="w-8 h-8 rounded-full flex-shrink-0"
+              />
+            )}
+            <div>
+              <div className={`text-xs mb-1 ${
+                isAdmin ? 'text-right text-gray-500' : 'text-left text-gray-500'
+              }`}>
+                {isAdmin ? 'Admin' : selectedUser?.username}
+              </div>
+              
+              <div 
+                className={`relative px-4 py-2.5 rounded-2xl shadow-sm ${
+                  isAdmin 
+                    ? 'bg-[#0084ff] text-white' 
+                    : 'bg-white text-gray-800'
+                } ${
+                  isAdmin ? 'rounded-br-sm' : 'rounded-bl-sm'
+                }`}
+              >
+                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <div className={`flex items-center justify-end space-x-2 mt-1 text-xs ${
+                  isAdmin ? 'text-blue-50' : 'text-gray-500'
+                }`}>
+                  <span>{formatMessageTime(message.createdAt)}</span>
+                  {isPending && (
+                    <span className={isAdmin ? 'text-blue-50' : 'text-gray-500'}>Đang gửi...</span>
+                  )}
+                  {message.read && isAdmin && (
+                    <span className="text-blue-50">✓✓</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    });
+  };
+
+  // Thêm hàm lọc và hiển thị users online
   const renderUsersList = () => {
-    const displayUsers = searchTerm || Object.values(filters).some(v => v !== '') 
-      ? searchResults 
-      : users;
+    const sortedUsers = [...users].sort((a, b) => {
+      // Sắp xếp theo trạng thái online
+      if (a.isOnline && !b.isOnline) return -1;
+      if (!a.isOnline && b.isOnline) return 1;
+      
+      // Nếu cùng trạng thái online, sắp xếp theo verified
+      if (a.verified && !b.verified) return -1;
+      if (!a.verified && b.verified) return 1;
+      
+      // Nếu cùng trạng thái verified, sắp xếp theo thời gian hoạt động
+      return new Date(b.lastActive) - new Date(a.lastActive);
+    });
 
-    if (loading) {
-      return (
-        <div className="flex justify-center items-center p-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        </div>
-      );
-    }
-
-    if (!Array.isArray(displayUsers) || displayUsers.length === 0) {
-      return (
-        <div className="p-4 text-center text-gray-500">
-          {searchTerm ? 'Không tìm thy người dùng' : 'Không có người dùng nào'}
-        </div>
-      );
-    }
-
-    return displayUsers.map(user => (
-      <div
+    return sortedUsers.map(user => (
+      <UserListItem
         key={user._id}
+        user={user}
+        isSelected={selectedUser?._id === user._id}
         onClick={() => handleUserSelect(user)}
-        className={`p-3 hover:bg-gray-50 cursor-pointer transition-colors duration-150 ${
-          selectedUser?._id === user._id ? 'bg-blue-50' : ''
-        }`}
-      >
-        <div className="flex items-center space-x-2">
-          <div className="relative flex-shrink-0">
-            <img
-              src={user.avatar || '/default-avatar.png'}
-              alt={user.username}
-              className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
+      />
+    ));
+  };
+
+  // Add handleResendMessage function
+  const handleResendMessage = async (failedMessage) => {
+    if (failedMessage.type === 'image') {
+      // Cập nhật trạng thái tin nhắn thành pending
+      setMessages(prev => prev.map(msg => 
+        msg.tempId === failedMessage.tempId 
+          ? { ...msg, status: 'pending', error: null } 
+          : msg
+      ));
+
+      try {
+        await sendAdminImage({
+          userId: selectedUser._id,
+          image: failedMessage.content,
+          adminId: localStorage.getItem('adminId'),
+          tempId: failedMessage.tempId
+        });
+      } catch (error) {
+        console.error('Error resending image:', error);
+        setMessages(prev => prev.map(msg => 
+          msg.tempId === failedMessage.tempId 
+            ? { ...msg, status: 'error', error: 'Lỗi khi gửi lại ảnh' } 
+            : msg
+        ));
+      }
+    } else {
+      // Xử lý gửi lại tin nhắn text như cũ
+      // ... existing resend message code ...
+    }
+  };
+
+  // Thêm hàm xử lý upload ảnh
+  const handleImageUpload = async (event) => {
+    const files = Array.from(event.target.files);
+    if (files.length === 0) return;
+
+    const validImageTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+
+    const validFiles = files.filter(file => 
+      validImageTypes.includes(file.type) && file.size <= maxSize
+    );
+
+    if (validFiles.length === 0) {
+      alert('Vui lòng chọn ảnh có định dạng JPG, PNG hoặc GIF và kích thước dưới 5MB');
+      return;
+    }
+
+    try {
+      for (const file of validFiles) {
+        const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+        
+        // Tạo optimistic message
+        const optimisticMessage = {
+          tempId,
+          content: URL.createObjectURL(file),
+          type: 'image',
+          sender: {
+            _id: localStorage.getItem('adminId'),
+            role: 'admin'
+          },
+          receiver: selectedUser._id,
+          createdAt: new Date().toISOString(),
+          status: 'pending',
+          isAdminMessage: true
+        };
+
+        setMessages(prev => [...prev, optimisticMessage]);
+        scrollToBottom();
+
+        try {
+          const reader = new FileReader();
+          const imageDataPromise = new Promise((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
+          const base64Image = await imageDataPromise;
+          const response = await sendAdminImage({
+            userId: selectedUser._id,
+            image: base64Image,
+            adminId: localStorage.getItem('adminId'),
+            tempId
+          });
+
+          // Cập nhật tin nhắn với URL ảnh từ server
+          setMessages(prev => prev.map(msg => 
+            msg.tempId === tempId ? { ...response, status: 'sent' } : msg
+          ));
+        } catch (error) {
+          console.error('Error sending image:', error);
+          setMessages(prev => prev.map(msg => 
+            msg.tempId === tempId 
+              ? { ...msg, status: 'error', error: error.message || 'Lỗi gửi ảnh' } 
+              : msg
+          ));
+        }
+      }
+    } catch (error) {
+      console.error('Error processing images:', error);
+      alert('Có lỗi xảy ra khi xử lý ảnh');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  // Thêm hàm xử lý gửi nhiều ảnh (nếu cần)
+  const handleMultipleImagesUpload = async (files) => {
+    // Similar to handleImageUpload but uses sendAdminMultipleImages
+    // ...
+  };
+
+  return (
+    <div className="flex h-full bg-[#f5f7fb]">
+      {/* Sidebar Users List */}
+      <div className="w-80 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+        {/* Search Header */}
+        <div className="p-4 border-b border-gray-100">
+          <div className="relative">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={handleSearchChange}
+              placeholder="Tìm kiếm người dùng..."
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg pr-10 
+              focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             />
-            {onlineUsers.has(user._id) ? (
-              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-white rounded-full"></span>
-            ) : (
-              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-gray-300 border-2 border-white rounded-full"></span>
-            )}
-            {user.verified && (
-              <span className="absolute -top-1 -right-1">
-                <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm3.707 6.293a1 1 0 00-1.414 0L9 11.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4a1 1 0 000-1.414z" />
-                </svg>
-              </span>
-            )}
+            <MdSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl" />
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold text-gray-900 truncate">
-              {user.username}
-              {user.vohieuhoa && (
-                <span className="ml-1 text-xs text-red-500">(Vô hiệu hóa)</span>
-              )}
-            </h3>
-            <p className="text-xs text-gray-500 truncate">
-              {onlineUsers.has(user._id)
-                ? 'Đang hoạt động'
-                : formatLastActive(user.recentActivity?.lastLogin || lastActive[user._id])
-              }
-            </p>
+          
+          {/* Online Stats */}
+          <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Thống kê trực tuyến</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white p-3 rounded-lg shadow-sm">
+                <div className="text-xs text-gray-500">Tổng online</div>
+                <div className="text-lg font-semibold text-green-500">{onlineStats.totalOnline}</div>
+              </div>
+              <div className="bg-white p-3 rounded-lg shadow-sm">
+                <div className="text-xs text-gray-500">Đã xác minh</div>
+                <div className="text-lg font-semibold text-blue-500">{onlineStats.verifiedCount}</div>
+              </div>
+              <div className="bg-white p-3 rounded-lg shadow-sm">
+                <div className="text-xs text-gray-500">Thường</div>
+                <div className="text-lg font-semibold text-gray-600">{onlineStats.normalUserCount}</div>
+              </div>
+            </div>
           </div>
-          {user.postsCount > 0 && (
-            <div className="text-xs text-gray-400">
-              {user.postsCount} bài viết
+        </div>
+
+        {/* Users List */}
+        <div className="flex-1 overflow-y-auto">
+          {users.length > 0 ? (
+            <div className="divide-y divide-gray-100">
+              {renderUsersList()}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-500">
+              Không tìm thấy người dùng nào
             </div>
           )}
         </div>
       </div>
-    ));
-  };
 
-  // Main render
-  if (loading && !users.length) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-full bg-gray-50">
-      {/* Sidebar chat */}
-      <div className="w-80 flex-shrink-0 flex flex-col bg-white border-r border-gray-200">
-        <div className="p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800">Tin nhắn</h2>
-          <div className="mt-2 relative">
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={handleSearchChange}
-              placeholder="Tìm kiếm người dùng..."
-              className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <MdSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          </div>
-        </div>
-        
-        {renderFilters()}
-        
-        <div className="flex-1 overflow-y-auto">
-          {renderUsersList()}
-        </div>
-        
-        {renderPagination()}
-      </div>
-
-      {/* Chat area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {selectedUser ? (
-          <>
-            {/* Chat header */}
-            <div className="h-16 px-6 flex items-center justify-between border-b border-gray-200 bg-white">
-              <div className="flex items-center space-x-3">
+      {/* Chat Area */}
+      {selectedUser ? (
+        <div className="flex-1 flex flex-col bg-white overflow-hidden">
+          {/* Chat Header */}
+          <div className="px-6 py-4 border-b border-gray-200 bg-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
                 <div className="relative">
                   <img
                     src={selectedUser.avatar || '/default-avatar.png'}
-                    alt={selectedUser.username}
-                    className="w-9 h-9 rounded-full object-cover"
+                    alt=""
+                    className="w-12 h-12 rounded-full object-cover border-2 border-gray-100"
                   />
-                  {onlineUsers.has(selectedUser._id) ? (
-                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-white rounded-full"></span>
-                  ) : (
-                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-gray-300 border-2 border-white rounded-full"></span>
-                  )}
+                  <span 
+                    className={`absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-white rounded-full
+                      ${selectedUser.isOnline ? 'bg-green-500' : 'bg-gray-300'}`}
+                  />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold">{selectedUser.username}</h3>
-                  <p className="text-xs text-gray-500">
-                    {onlineUsers.has(selectedUser._id)
-                      ? 'Đang hoạt động'
-                      : formatLastActive(lastActive[selectedUser._id])
-                    }
-                  </p>
+                  <div className="flex items-center space-x-2">
+                    <h2 className="text-lg font-medium text-gray-900">{selectedUser.username}</h2>
+                    {selectedUser.verified && (
+                      <MdVerified className="w-5 h-5 text-blue-500" />
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-2 text-sm text-gray-500">
+                    <span className={`w-2 h-2 rounded-full ${
+                      selectedUser.isOnline ? 'bg-green-500' : 'bg-gray-300'
+                    }`} />
+                    <span>{selectedUser.isOnline ? 'Đang hoạt động' : 'Không hoạt động'}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            {/* Messages container */}
-            <div 
-              ref={messagesContainerRef}
-              className="flex-1 overflow-y-auto p-6 space-y-4"
-              style={{ height: 'calc(100vh - 160px)' }}
-            >
-              {renderMessages()}
-              {isTyping && (
-                <div className="flex items-center space-x-2 text-gray-500">
-                  <div className="animate-bounce">.</div>
-                  <div className="animate-bounce animation-delay-200">.</div>
-                  <div className="animate-bounce animation-delay-400">.</div>
-                </div>
-              )}
-            </div>
-
-            {/* Input area */}
-            <div className="h-16 px-6 py-3 border-t border-gray-200 bg-white">
-              <div className="flex items-center space-x-3 h-full">
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => {
-                      setNewMessage(e.target.value);
-                      handleTyping();
-                    }}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                    className="w-full px-4 py-2 text-sm rounded-full border border-gray-300 focus:outline-none focus:border-blue-500"
-                    placeholder="Nhập tin nhắn..."
-                  />
-                </div>
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!newMessage.trim()}
-                  className={`p-2 rounded-full transition-all ${
-                    newMessage.trim()
-                      ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <h3 className="text-lg font-medium text-gray-900">Chưa chọn cuộc trò chuyện</h3>
-              <p className="text-gray-500 mt-1">Chọn một người dùng để bắt đầu trò chuyện</p>
             </div>
           </div>
-        )}
+
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50" ref={messagesContainerRef}>
+            <div className="space-y-4">
+              {messages.map(message => {
+                // Kiểm tra chính xác role của người gửi
+                const isAdmin = message.sender?.role === 'admin' || message.sender?._id === localStorage.getItem('adminId');
+                const isPending = message.pending;
+                
+                return (
+                  <div
+                    key={message._id || message.tempId}
+                    className={`flex ${isAdmin ? 'justify-end' : 'justify-start'} mb-3`}
+                  >
+                    <div className={`max-w-[70%] flex items-end ${
+                      isAdmin ? 'flex-row-reverse' : 'flex-row'
+                    } space-x-2`}>
+                      {!isAdmin && (
+                        <img
+                          src={selectedUser?.avatar || '/default-avatar.png'}
+                          alt=""
+                          className="w-8 h-8 rounded-full flex-shrink-0"
+                        />
+                      )}
+                      <div>
+                        <div className={`text-xs mb-1 ${
+                          isAdmin ? 'text-right text-gray-500' : 'text-left text-gray-500'
+                        }`}>
+                          {isAdmin ? 'Admin' : selectedUser?.username}
+                        </div>
+                        
+                        <div 
+                          className={`relative px-4 py-2.5 rounded-2xl shadow-sm ${
+                            isAdmin 
+                              ? 'bg-[#0084ff] text-white' 
+                              : 'bg-white text-gray-800'
+                          } ${
+                            isAdmin ? 'rounded-br-sm' : 'rounded-bl-sm'
+                          }`}
+                        >
+                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                          <div className={`flex items-center justify-end space-x-2 mt-1 text-xs ${
+                            isAdmin ? 'text-blue-50' : 'text-gray-500'
+                          }`}>
+                            <span>{formatMessageTime(message.createdAt)}</span>
+                            {isPending && (
+                              <span className={isAdmin ? 'text-blue-50' : 'text-gray-500'}>Đang gửi...</span>
+                            )}
+                            {message.read && isAdmin && (
+                              <span className="text-blue-50">✓✓</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {isTyping && (
+                <div className="flex items-center space-x-2 text-gray-500">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" />
+                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce delay-100" />
+                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce delay-200" />
+                  </div>
+                  <span className="text-sm">Đang nhập...</span>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+
+          {/* Input Area */}
+          <div className="px-6 py-4 border-t border-gray-200 bg-white">
+            <div className="flex items-center space-x-4">
+              <button className="text-gray-400 hover:text-blue-500 transition-colors">
+                <BsEmojiSmile className="w-6 h-6" />
+              </button>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                id="image-upload"
+                onChange={handleImageUpload}
+              />
+              <label 
+                htmlFor="image-upload"
+                className="text-gray-400 hover:text-blue-500 transition-colors cursor-pointer"
+              >
+                <IoImageOutline className="w-6 h-6" />
+              </label>
+              <div className="flex-1">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => {
+                    setNewMessage(e.target.value);
+                    handleTyping();
+                  }}
+                  placeholder="Nhập tin nhắn..."
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg
+                  focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  onKeyPress={e => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                />
+              </div>
+              <button
+                onClick={handleSendMessage}
+                disabled={!newMessage.trim()}
+                className={`p-2.5 rounded-lg ${
+                  newMessage.trim()
+                    ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                } transition-colors`}
+              >
+                <IoSend className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center bg-gray-50">
+          <div className="text-center text-gray-500">
+            <div className="mb-4">
+              <MdOutlineMarkUnreadChatAlt className="w-16 h-16 mx-auto text-gray-300" />
+            </div>
+            <p className="text-lg">Chọn một người dùng để bắt đầu trò chuyện</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Sub-components
+const UserListItem = ({ user, isSelected, onClick }) => {
+  const isOnline = user.isOnline;
+  
+  return (
+    <div
+      onClick={onClick}
+      className={`p-4 cursor-pointer hover:bg-gray-50 ${
+        isSelected ? 'bg-blue-50' : ''
+      } border-b border-gray-100`}
+    >
+      <div className="flex items-center space-x-3">
+        <div className="relative">
+          <img
+            src={user.avatar || '/default-avatar.png'}
+            alt={user.username}
+            className="w-12 h-12 rounded-full object-cover border-2 border-gray-200"
+          />
+          <span 
+            className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${
+              isOnline ? 'bg-green-500' : 'bg-gray-300'
+            }`} 
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-1">
+              <span className="font-medium truncate">{user.username}</span>
+              {user.verified && (
+                <MdVerified className="h-4 w-4 text-blue-500" title="Đã xác minh" />
+              )}
+            </div>
+            {user.vohieuhoa && (
+              <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-600">
+                Đã khóa
+              </span>
+            )}
+          </div>
+          
+          <div className="text-sm text-gray-500 truncate">
+            {user.email}
+          </div>
+          
+          <div className="flex items-center space-x-2 mt-1">
+            <span className={`text-xs ${
+              isOnline ? 'text-green-500' : 'text-gray-500'
+            }`}>
+              {isOnline ? '● Đang hoạt động' : '○ Không hoạt động'}
+            </span>
+            {user.lastActive && !isOnline && (
+              <span className="text-xs text-gray-400">
+                {formatLastActive(user.lastActive)}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Thêm hàm format thời gian
+const formatLastActive = (lastActive) => {
+  try {
+    const lastActiveDate = new Date(lastActive);
+    const now = new Date();
+    const diffInMinutes = Math.floor((now - lastActiveDate) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Vừa mới truy cập';
+    if (diffInMinutes < 60) return `${diffInMinutes} phút trước`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours} giờ trước`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `${diffInDays} ngày trước`;
+    
+    return lastActiveDate.toLocaleDateString('vi-VN');
+  } catch (error) {
+    console.error('Error formatting last active time:', error);
+    return 'Không xác định';
+  }
+};
+
+const ChatHeader = ({ user }) => {
+  const onlineUsers = useOnlineStatus();
+  const isOnline = onlineUsers.some(onlineUser => onlineUser._id === user._id);
+  
+  return (
+    <div className="p-4 border-b bg-white shadow-sm">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="relative">
+            <img
+              src={user.avatar || '/default-avatar.png'}
+              alt={user.username}
+              className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+            />
+            <span 
+              className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                isOnline ? 'bg-green-500' : 'bg-gray-300'
+              }`} 
+            />
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="font-medium text-gray-900">{user.username}</span>
+              {user.verified && (
+                <MdVerified className="h-4 w-4 text-blue-500" />
+              )}
+            </div>
+            <div className="text-sm text-gray-500 flex items-center space-x-1">
+              <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-300'}`} />
+              <span>{isOnline ? 'Đang hoạt động' : 'Không hoạt động'}</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center space-x-3">
+          {user.unreadCount > 0 && (
+            <div className="flex items-center text-blue-500">
+              <MdOutlineMarkUnreadChatAlt className="w-5 h-5" />
+              <span className="ml-1 text-sm">{user.unreadCount}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ChatInput = ({ value, onChange, onSend }) => {
+  const [showEmoji, setShowEmoji] = useState(false);
+  const inputRef = useRef(null);
+
+  return (
+    <div className="p-4 border-t bg-white">
+      <div className="flex items-center space-x-2">
+        <button 
+          className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
+          onClick={() => setShowEmoji(!showEmoji)}
+        >
+          <BsEmojiSmile className="w-5 h-5" />
+        </button>
+        <button className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors">
+          <IoImageOutline className="w-5 h-5" />
+        </button>
+        <div className="flex-1 relative">
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={onChange}
+            placeholder="Nhập tin nhắn..."
+            className="w-full px-4 py-2 border rounded-full focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            onKeyPress={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                onSend();
+              }
+            }}
+          />
+        </div>
+        <button
+          onClick={onSend}
+          disabled={!value.trim()}
+          className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:hover:bg-blue-500 transition-colors"
+        >
+          <IoSend className="w-5 h-5" />
+        </button>
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 const apiConfig = {
   // Sử dụng trực tiếp URL của API
   baseURL: 'https://www.adminftravel.xyz'||'http://localhost:3000',
-  socketURL: 'https://www.adminftravel.xyz',
+  socketUR: 'https://www.adminftravel.xyz',
   
   headers: {
     'Content-Type': 'application/json',
@@ -36,11 +36,8 @@ const apiConfig = {
     login: '/api/admin/login',
     users:()=> '/api/admin/users',
     stats: '/api/admin/dashboard-stats',
-    
-    // Chat endpoints
+    getUserStatus:(userId)=>`/api/admin/users/${userId}/status`,
   
-    messages: (userId) => `/api/admin/messages/${userId}`,
-    sendMessage: (userId) => `/api/admin/chat/send/${userId}`,
     chatHistory:(userId)=>`/api/admin/chat/${userId}`,
     // User endpoints
     allUsers: () => '/api/admin/users/all',
@@ -69,6 +66,17 @@ const apiConfig = {
       markRead: (id) => `/api/admin/notifications/${id}/mark-read`,
       delete: (id) => `/api/admin/notifications/${id}`,
       unreadCount: '/api/admin/notifications/unread-count'
+    },
+    
+    // Thêm endpoint cho online users
+    onlineUsers: '/api/admin/online-users',
+    
+    // Thêm các endpoints mới cho chat
+    chat: {
+     
+      sendImage: (userId) => `/api/admin/chat/send-image/${userId}`,
+      sendMultipleImages: (userId) => `/api/admin/chat/send-multiple-images/${userId}`,
+      
     },
   },
 

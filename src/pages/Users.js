@@ -122,6 +122,16 @@ const Users = () => {
     }
   };
 
+  const handleUserDetail = (user) => {
+    navigate(`/admin/users/${user._id}`, {
+      state: { 
+        isDisabled: user.vohieuhoa,
+        username: user.username,
+        userId: user._id
+      }
+    });
+  };
+
   const renderUsersList = () => {
     if (loading) {
       return (
@@ -215,7 +225,7 @@ const Users = () => {
         </td>
         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
           <button
-            onClick={() => navigate(`/admin/users/${user._id}`)}
+            onClick={() => handleUserDetail(user)}
             className="text-indigo-600 hover:text-indigo-900 inline-flex items-center"
           >
             <MdInfo className="h-5 w-5 mr-1" />

@@ -16,6 +16,7 @@ const Notifications = () => {
   useEffect(() => {
     const adminId = localStorage.getItem('adminId');
     if (!adminId) {
+      console.error('Admin ID not found in localStorage');
       setLoading(false);
       return;
     }
@@ -112,22 +113,28 @@ const Notifications = () => {
     console.log('Notification data:', notification);
 
     if (notification.type === 'new_report') {
-      navigate(`/admin/reports/${notification._id}`);
+      const reportId = notification.reportId || notification._id || notification.id;
+      if (!reportId) {
+        console.error('Report ID not found in notification:', notification);
+        toast.error('Không tìm thấy ID báo cáo');
+        return;
+      }
+      navigate(`/admin/reports/${reportId}`);
       return;
     }
 
     const navigationMap = {
       'user_report': { 
         screen: '/admin/users', 
-        getId: (notif) => notif.sender
+        getId: (notif) => notif.sender || notif.userId
       },
       'post_report': { 
         screen: '/admin/posts', 
-        getId: (notif) => notif.post
+        getId: (notif) => notif.post || notif.postId
       },
       'comment_report': { 
         screen: '/admin/comments', 
-        getId: (notif) => notif.comment
+        getId: (notif) => notif.comment || notif.commentId
       }
     };
 
