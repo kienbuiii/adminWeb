@@ -1,0 +1,58 @@
+/* Base styles */
+.sidebar {
+  @apply fixed left-0 top-0 h-screen bg-gray-900 text-white transition-all duration-300 ease-in-out z-50;
+  width: 250px;
+}
+
+/* Logo container */
+.sidebar-logo {
+  @apply flex items-center p-4 border-b border-gray-800;
+}
+
+.sidebar-logo-icon {
+  @apply text-4xl text-blue-500;
+}
+
+.sidebar-logo-text {
+  @apply text-xl font-bold ml-2 text-white;
+}
+
+/* Navigation menu */
+.sidebar-nav {
+  @apply mt-4 px-2;
+}
+
+.nav-link {
+  @apply flex items-center px-4 py-3 text-gray-300 rounded-lg mb-1 transition-colors;
+  @apply hover:bg-gray-800 hover:text-white;
+}
+
+.nav-link-active {
+  @apply bg-gray-800 text-white;
+}
+
+.nav-icon {
+  @apply w-5 h-5 mr-3;
+}
+
+/* Mobile styles */
+@media (max-width: 1024px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+}
+
+/* Desktop styles */
+@media (min-width: 1024px) {
+  .sidebar {
+    transform: translateX(0);
+  }
+  
+  .main-content {
+    @apply ml-64;
+  }
+} 

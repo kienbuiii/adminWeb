@@ -10,6 +10,7 @@ import debounce from 'lodash/debounce';
 import { IoSend, IoImageOutline } from 'react-icons/io5';
 import { BsEmojiSmile } from 'react-icons/bs';
 import { MdOutlineMarkUnreadChatAlt } from 'react-icons/md';
+import styles from '../styles/components/AdminChat.module.css';
 
 const AdminChat = () => {
   // States
@@ -26,7 +27,7 @@ const AdminChat = () => {
     verifiedCount: 0,
     normalUserCount: 0
   });
-
+  const isAdmin = true;
   // Refs
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -679,7 +680,7 @@ const AdminChat = () => {
     );
 
     if (validFiles.length === 0) {
-      alert('Vui lòng chọn ảnh có định dạng JPG, PNG hoặc GIF và kích thước dưới 5MB');
+      alert('Vui lòng chọn ảnh có định dạng JPG, PNG hoặc GIF và kích thước dới 5MB');
       return;
     }
 
@@ -721,7 +722,7 @@ const AdminChat = () => {
             tempId
           });
 
-          // Cập nhật tin nhắn với URL ảnh từ server
+          // Cập nhật tin nh��n với URL ảnh từ server
           setMessages(prev => prev.map(msg => 
             msg.tempId === tempId ? { ...response, status: 'sent' } : msg
           ));
@@ -749,185 +750,117 @@ const AdminChat = () => {
   };
 
   return (
-    <div className="flex h-full bg-[#f5f7fb]">
-      {/* Sidebar Users List */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+    <div className={styles.container}>
+      {/* Sidebar */}
+      <div className={styles.sidebar}>
         {/* Search Header */}
-        <div className="p-4 border-b border-gray-100">
+        <div className={styles.header}>
           <div className="relative">
             <input
               type="text"
               value={searchTerm}
               onChange={handleSearchChange}
               placeholder="Tìm kiếm người dùng..."
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg pr-10 
-              focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
-            <MdSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl" />
+            <MdSearch className="absolute left-3 top-2.5 text-gray-400 h-5 w-5" />
           </div>
           
           {/* Online Stats */}
-          <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">Thống kê trực tuyến</h3>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-white p-3 rounded-lg shadow-sm">
-                <div className="text-xs text-gray-500">Tổng online</div>
-                <div className="text-lg font-semibold text-green-500">{onlineStats.totalOnline}</div>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow-sm">
-                <div className="text-xs text-gray-500">Đã xác minh</div>
-                <div className="text-lg font-semibold text-blue-500">{onlineStats.verifiedCount}</div>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow-sm">
-                <div className="text-xs text-gray-500">Thường</div>
-                <div className="text-lg font-semibold text-gray-600">{onlineStats.normalUserCount}</div>
-              </div>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+            <div className="bg-blue-50 p-2 rounded-lg text-center">
+              <div className="font-semibold text-blue-600">{onlineStats.totalOnline}</div>
+              <div className="text-gray-600">Đang online</div>
+            </div>
+            <div className="bg-green-50 p-2 rounded-lg text-center">
+              <div className="font-semibold text-green-600">{onlineStats.verifiedCount}</div>
+              <div className="text-gray-600">Đã xác minh</div>
+            </div>
+            <div className="bg-purple-50 p-2 rounded-lg text-center">
+              <div className="font-semibold text-purple-600">{onlineStats.normalUserCount}</div>
+              <div className="text-gray-600">Chưa xác minh</div>
             </div>
           </div>
         </div>
 
         {/* Users List */}
-        <div className="flex-1 overflow-y-auto">
-          {users.length > 0 ? (
-            <div className="divide-y divide-gray-100">
-              {renderUsersList()}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">
-              Không tìm thấy người dùng nào
-            </div>
-          )}
+        <div className={styles.messageList}>
+          {renderUsersList()}
         </div>
       </div>
 
       {/* Chat Area */}
-      {selectedUser ? (
-        <div className="flex-1 flex flex-col bg-white overflow-hidden">
-          {/* Chat Header */}
-          <div className="px-6 py-4 border-b border-gray-200 bg-white">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="relative">
-                  <img
-                    src={selectedUser.avatar || '/default-avatar.png'}
-                    alt=""
-                    className="w-12 h-12 rounded-full object-cover border-2 border-gray-100"
-                  />
-                  <span 
-                    className={`absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-white rounded-full
-                      ${selectedUser.isOnline ? 'bg-green-500' : 'bg-gray-300'}`}
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <h2 className="text-lg font-medium text-gray-900">{selectedUser.username}</h2>
-                    {selectedUser.verified && (
-                      <MdVerified className="w-5 h-5 text-blue-500" />
-                    )}
+      <div className={styles.chatArea}>
+        {selectedUser ? (
+          <>
+            {/* Chat Header */}
+            <div className={styles.header}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <img
+                      src={selectedUser.avatar || '/default-avatar.png'}
+                      alt={selectedUser.username}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                    <span 
+                      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                        onlineUsers.includes(selectedUser._id) ? 'bg-green-500' : 'bg-gray-300'
+                      }`}
+                    />
                   </div>
-                  <div className="flex items-center space-x-2 text-sm text-gray-500">
-                    <span className={`w-2 h-2 rounded-full ${
-                      selectedUser.isOnline ? 'bg-green-500' : 'bg-gray-300'
-                    }`} />
-                    <span>{selectedUser.isOnline ? 'Đang hoạt động' : 'Không hoạt động'}</span>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium">{selectedUser.username}</span>
+                      {selectedUser.verified && (
+                        <MdVerified className="text-blue-500 h-5 w-5" />
+                      )}
+                    </div>
+                    <span className="text-sm text-gray-500">
+                      {onlineUsers.includes(selectedUser._id) ? 'Đang hoạt động' : 'Không hoạt động'}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50" ref={messagesContainerRef}>
-            <div className="space-y-4">
-              {messages.map(message => {
-                // Kiểm tra chính xác role của người gửi
-                const isAdmin = message.sender?.role === 'admin' || message.sender?._id === localStorage.getItem('adminId');
-                const isPending = message.pending;
-                
-                return (
-                  <div
-                    key={message._id || message.tempId}
-                    className={`flex ${isAdmin ? 'justify-end' : 'justify-start'} mb-3`}
-                  >
-                    <div className={`max-w-[70%] flex items-end ${
-                      isAdmin ? 'flex-row-reverse' : 'flex-row'
-                    } space-x-2`}>
-                      {!isAdmin && (
-                        <img
-                          src={selectedUser?.avatar || '/default-avatar.png'}
-                          alt=""
-                          className="w-8 h-8 rounded-full flex-shrink-0"
-                        />
-                      )}
-                      <div>
-                        <div className={`text-xs mb-1 ${
-                          isAdmin ? 'text-right text-gray-500' : 'text-left text-gray-500'
-                        }`}>
-                          {isAdmin ? 'Admin' : selectedUser?.username}
-                        </div>
-                        
-                        <div 
-                          className={`relative px-4 py-2.5 rounded-2xl shadow-sm ${
-                            isAdmin 
-                              ? 'bg-[#0084ff] text-white' 
-                              : 'bg-white text-gray-800'
-                          } ${
-                            isAdmin ? 'rounded-br-sm' : 'rounded-bl-sm'
-                          }`}
-                        >
-                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                          <div className={`flex items-center justify-end space-x-2 mt-1 text-xs ${
-                            isAdmin ? 'text-blue-50' : 'text-gray-500'
-                          }`}>
-                            <span>{formatMessageTime(message.createdAt)}</span>
-                            {isPending && (
-                              <span className={isAdmin ? 'text-blue-50' : 'text-gray-500'}>Đang gửi...</span>
-                            )}
-                            {message.read && isAdmin && (
-                              <span className="text-blue-50">✓✓</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+            {/* Messages Area */}
+            <div 
+              ref={messagesContainerRef}
+              className={styles.messageList}
+            >
+              {messages.map(message => (
+                <div 
+                  key={message._id || message.tempId}
+                  className={`${styles.messageContainer} ${
+                    message.sender?.role === 'admin' ? styles.justifyEnd : styles.justifyStart
+                  }`}
+                >
+                  <div className={`${styles.message} ${
+                    message.sender?.role === 'admin' ? styles.adminMessage : styles.userMessage
+                  }`}>
+                    <div className={styles.messageContent}>
+                      {message.content}
                     </div>
                   </div>
-                );
-              })}
-              {isTyping && (
-                <div className="flex items-center space-x-2 text-gray-500">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" />
-                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce delay-100" />
-                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce delay-200" />
-                  </div>
-                  <span className="text-sm">Đang nhập...</span>
                 </div>
+              ))}
+              {isTyping && (
+                <div className="text-gray-500 text-sm">Đang nhập tin nhắn...</div>
               )}
-              <div ref={messagesEndRef} />
             </div>
-          </div>
 
-          {/* Input Area */}
-          <div className="px-6 py-4 border-t border-gray-200 bg-white">
-            <div className="flex items-center space-x-4">
-              <button className="text-gray-400 hover:text-blue-500 transition-colors">
-                <BsEmojiSmile className="w-6 h-6" />
-              </button>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                id="image-upload"
-                onChange={handleImageUpload}
-              />
-              <label 
-                htmlFor="image-upload"
-                className="text-gray-400 hover:text-blue-500 transition-colors cursor-pointer"
-              >
-                <IoImageOutline className="w-6 h-6" />
-              </label>
-              <div className="flex-1">
+            {/* Input Area */}
+            <div className={styles.inputArea}>
+              <div className={styles.inputContainer}>
+                <button className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors">
+                  <BsEmojiSmile className="h-5 w-5" />
+                </button>
+                <ImageUploader onImageSelect={handleImageUpload}>
+                  <button className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors">
+                    <IoImageOutline className="h-5 w-5" />
+                  </button>
+                </ImageUploader>
                 <input
                   type="text"
                   value={newMessage}
@@ -935,130 +868,49 @@ const AdminChat = () => {
                     setNewMessage(e.target.value);
                     handleTyping();
                   }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
                   placeholder="Nhập tin nhắn..."
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg
-                  focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                  onKeyPress={e => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                  className="flex-1 px-4 py-2 border rounded-full focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!newMessage.trim()}
+                  className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:hover:bg-blue-500 transition-colors"
+                >
+                  <IoSend className="h-5 w-5" />
+                </button>
               </div>
-              <button
-                onClick={handleSendMessage}
-                disabled={!newMessage.trim()}
-                className={`p-2.5 rounded-lg ${
-                  newMessage.trim()
-                    ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                } transition-colors`}
-              >
-                <IoSend className="w-5 h-5" />
-              </button>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-gray-500">
+            <div className="text-center">
+              <MdOutlineMarkUnreadChatAlt className="h-12 w-12 mx-auto text-gray-400" />
+              <p className="mt-2">Chọn một người dùng để bắt đầu trò chuyện</p>
             </div>
           </div>
-        </div>
-      ) : (
-        <div className="flex-1 flex items-center justify-center bg-gray-50">
-          <div className="text-center text-gray-500">
-            <div className="mb-4">
-              <MdOutlineMarkUnreadChatAlt className="w-16 h-16 mx-auto text-gray-300" />
-            </div>
-            <p className="text-lg">Chọn một người dùng để bắt đầu trò chuyện</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Sub-components
-const UserListItem = ({ user, isSelected, onClick }) => {
-  const isOnline = user.isOnline;
-  
-  return (
-    <div
-      onClick={onClick}
-      className={`p-4 cursor-pointer hover:bg-gray-50 ${
-        isSelected ? 'bg-blue-50' : ''
-      } border-b border-gray-100`}
-    >
-      <div className="flex items-center space-x-3">
-        <div className="relative">
-          <img
-            src={user.avatar || '/default-avatar.png'}
-            alt={user.username}
-            className="w-12 h-12 rounded-full object-cover border-2 border-gray-200"
-          />
-          <span 
-            className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${
-              isOnline ? 'bg-green-500' : 'bg-gray-300'
-            }`} 
-          />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-1">
-              <span className="font-medium truncate">{user.username}</span>
-              {user.verified && (
-                <MdVerified className="h-4 w-4 text-blue-500" title="Đã xác minh" />
-              )}
-            </div>
-            {user.vohieuhoa && (
-              <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-600">
-                Đã khóa
-              </span>
-            )}
-          </div>
-          
-          <div className="text-sm text-gray-500 truncate">
-            {user.email}
-          </div>
-          
-          <div className="flex items-center space-x-2 mt-1">
-            <span className={`text-xs ${
-              isOnline ? 'text-green-500' : 'text-gray-500'
-            }`}>
-              {isOnline ? '● Đang hoạt động' : '○ Không hoạt động'}
-            </span>
-            {user.lastActive && !isOnline && (
-              <span className="text-xs text-gray-400">
-                {formatLastActive(user.lastActive)}
-              </span>
-            )}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
 };
 
-// Thêm hàm format thời gian
-const formatLastActive = (lastActive) => {
-  try {
-    const lastActiveDate = new Date(lastActive);
-    const now = new Date();
-    const diffInMinutes = Math.floor((now - lastActiveDate) / (1000 * 60));
-    
-    if (diffInMinutes < 1) return 'Vừa mới truy cập';
-    if (diffInMinutes < 60) return `${diffInMinutes} phút trước`;
-    
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `${diffInHours} giờ trước`;
-    
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays} ngày trước`;
-    
-    return lastActiveDate.toLocaleDateString('vi-VN');
-  } catch (error) {
-    console.error('Error formatting last active time:', error);
-    return 'Không xác định';
-  }
-};
+// UserListItem Component
+const UserListItem = ({ user, isSelected, onClick }) => {
+  const isOnline = useOnlineStatus().includes(user._id);
 
-const ChatHeader = ({ user }) => {
-  const onlineUsers = useOnlineStatus();
-  const isOnline = onlineUsers.some(onlineUser => onlineUser._id === user._id);
-  
   return (
-    <div className="p-4 border-b bg-white shadow-sm">
+    <div
+      onClick={onClick}
+      className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
+        isSelected ? 'bg-blue-50' : ''
+      }`}
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="relative">
@@ -1086,58 +938,12 @@ const ChatHeader = ({ user }) => {
             </div>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
-          {user.unreadCount > 0 && (
-            <div className="flex items-center text-blue-500">
-              <MdOutlineMarkUnreadChatAlt className="w-5 h-5" />
-              <span className="ml-1 text-sm">{user.unreadCount}</span>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ChatInput = ({ value, onChange, onSend }) => {
-  const [showEmoji, setShowEmoji] = useState(false);
-  const inputRef = useRef(null);
-
-  return (
-    <div className="p-4 border-t bg-white">
-      <div className="flex items-center space-x-2">
-        <button 
-          className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
-          onClick={() => setShowEmoji(!showEmoji)}
-        >
-          <BsEmojiSmile className="w-5 h-5" />
-        </button>
-        <button className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors">
-          <IoImageOutline className="w-5 h-5" />
-        </button>
-        <div className="flex-1 relative">
-          <input
-            ref={inputRef}
-            type="text"
-            value={value}
-            onChange={onChange}
-            placeholder="Nhập tin nhắn..."
-            className="w-full px-4 py-2 border rounded-full focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-            onKeyPress={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                onSend();
-              }
-            }}
-          />
-        </div>
-        <button
-          onClick={onSend}
-          disabled={!value.trim()}
-          className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:hover:bg-blue-500 transition-colors"
-        >
-          <IoSend className="w-5 h-5" />
-        </button>
+        {user.unreadCount > 0 && (
+          <div className="flex items-center text-blue-500">
+            <MdOutlineMarkUnreadChatAlt className="w-5 h-5" />
+            <span className="ml-1 text-sm">{user.unreadCount}</span>
+          </div>
+        )}
       </div>
     </div>
   );

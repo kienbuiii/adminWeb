@@ -33,7 +33,7 @@ function App() {
             <Route path="users" element={<Users />} />
             <Route path="users/:id" element={<UserDetail />} />
             
-            <Route path="chat/:userId" element={<AdminChat />} />
+            <Route path="chat" element={<AdminChat />} />
             <Route path="reports" element={<AdminReports />} />
             <Route path="reports/:id" element={<ReportDetail />} />
             <Route path="notifications" element={<Notifications />} />

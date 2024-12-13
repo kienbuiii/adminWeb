@@ -1,0 +1,48 @@
+.container {
+  @apply min-h-screen flex items-center justify-center;
+  @apply bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500;
+}
+
+.formContainer {
+  @apply max-w-md w-full m-4;
+}
+
+.formCard {
+  @apply bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-8 space-y-6;
+  @apply sm:p-10;
+}
+
+.logo {
+  @apply mx-auto h-20 w-20 bg-gradient-to-r from-indigo-500 to-purple-600;
+  @apply rounded-full flex items-center justify-center shadow-lg;
+  @apply transform hover:scale-105 transition-transform duration-300;
+}
+
+.title {
+  @apply mt-6 text-3xl font-extrabold;
+  @apply bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent;
+}
+
+.input {
+  @apply w-full px-4 py-3 rounded-xl border border-gray-300;
+  @apply focus:ring-2 focus:ring-indigo-500 focus:border-transparent;
+  @apply transition-all duration-200;
+}
+
+.button {
+  @apply w-full flex justify-center py-3 px-4 border border-transparent;
+  @apply text-sm font-medium rounded-xl text-white;
+  @apply transform transition-all duration-300 hover:scale-[1.02] hover:shadow-lg;
+  @apply focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .formCard {
+    @apply p-6;
+  }
+
+  .title {
+    @apply text-2xl;
+  }
+} 
