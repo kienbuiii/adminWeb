@@ -212,29 +212,22 @@ const UserDetail = () => {
                 src={image}
                 alt={`Ảnh ${index + 1}`}
                 className="rounded-lg w-full h-48 object-cover cursor-pointer"
-                onClick={() => window.open(image, '_blank')}
               />
-              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center">
-                <MdImage className="text-white opacity-0 group-hover:opacity-100 transition-all duration-200" size={24} />
-              </div>
             </div>
           ))}
         </div>
       )}
 
+      {/* Hiển thị số lượng likes và comments */}
       <div className="flex items-center text-sm text-gray-500 pt-4 border-t">
         <div className="flex space-x-6">
-          <div className="flex items-center hover:text-red-500 transition-colors duration-200 cursor-pointer">
+          <div className="flex items-center">
             <MdFavorite className="w-5 h-5 mr-1" />
             <span>{post.likes?.length || 0}</span>
           </div>
-          <div className="flex items-center hover:text-blue-500 transition-colors duration-200 cursor-pointer">
+          <div className="flex items-center">
             <MdComment className="w-5 h-5 mr-1" />
             <span>{post.comments?.length || 0}</span>
-          </div>
-          <div className="flex items-center hover:text-purple-500 transition-colors duration-200 cursor-pointer">
-            <MdVisibility className="w-5 h-5 mr-1" />
-            <span>{post.views || 0} lượt xem</span>
           </div>
         </div>
       </div>
@@ -298,16 +291,16 @@ const UserDetail = () => {
           </div>
         )}
 
-        {/* Actions bar với animated interactions */}
-        <div className="flex items-center justify-start pt-4 border-t border-gray-100">
-          <div className="flex space-x-8">
-            <button className="flex items-center space-x-2 text-gray-600 hover:text-red-500 transition-colors duration-200">
-              <MdFavorite className="w-6 h-6" />
-              <span className="font-medium">{post.likes?.length || 0}</span>
-            </button>
-            <div className="flex items-center hover:text-blue-500 transition-colors duration-200 cursor-pointer">
-              <MdComment className="w-6 h-6 mr-1" />
-              <span className="font-medium">{post.comments?.length || 0} bình luận</span>
+        {/* Hiển thị số lượng likes và comments */}
+        <div className="flex items-center text-sm text-gray-500 pt-4 border-t">
+          <div className="flex space-x-6">
+            <div className="flex items-center">
+              <MdFavorite className="w-5 h-5 mr-1" />
+              <span>{post.likes?.length || 0}</span>
+            </div>
+            <div className="flex items-center">
+              <MdComment className="w-5 h-5 mr-1" />
+              <span>{post.comments?.length || 0}</span>
             </div>
           </div>
         </div>

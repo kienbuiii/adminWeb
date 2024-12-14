@@ -612,15 +612,11 @@ const AdminChat = () => {
   // Thêm hàm lọc và hiển thị users online
   const renderUsersList = () => {
     const sortedUsers = [...users].sort((a, b) => {
-      // Sắp xếp theo trạng thái online
+      // Chỉ sắp xếp theo trạng thái online
       if (a.isOnline && !b.isOnline) return -1;
       if (!a.isOnline && b.isOnline) return 1;
       
-      // Nếu cùng trạng thái online, sắp xếp theo verified
-      if (a.verified && !b.verified) return -1;
-      if (!a.verified && b.verified) return 1;
-      
-      // Nếu cùng trạng thái verified, sắp xếp theo thời gian hoạt động
+      // Nếu cùng trạng thái online, sắp xếp theo thời gian hoạt động
       return new Date(b.lastActive) - new Date(a.lastActive);
     });
 
@@ -630,6 +626,7 @@ const AdminChat = () => {
         user={user}
         isSelected={selectedUser?._id === user._id}
         onClick={() => handleUserSelect(user)}
+        isOnline={user.isOnline}
       />
     ));
   };
@@ -660,12 +657,10 @@ const AdminChat = () => {
         ));
       }
     } else {
-      // Xử lý gửi lại tin nhắn text như cũ
-      // ... existing resend message code ...
     }
   };
 
-  return (
+ return (
     <div className={styles.container}>
       {/* Sidebar */}
       <div className={styles.sidebar}>
@@ -683,18 +678,10 @@ const AdminChat = () => {
           </div>
           
           {/* Online Stats */}
-          <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+          <div className="mt-4">
             <div className="bg-blue-50 p-2 rounded-lg text-center">
               <div className="font-semibold text-blue-600">{onlineStats.totalOnline}</div>
               <div className="text-gray-600">Đang online</div>
-            </div>
-            <div className="bg-green-50 p-2 rounded-lg text-center">
-              <div className="font-semibold text-green-600">{onlineStats.verifiedCount}</div>
-              <div className="text-gray-600">Đã xác minh</div>
-            </div>
-            <div className="bg-purple-50 p-2 rounded-lg text-center">
-              <div className="font-semibold text-purple-600">{onlineStats.normalUserCount}</div>
-              <div className="text-gray-600">Chưa xác minh</div>
             </div>
           </div>
         </div>
@@ -726,12 +713,7 @@ const AdminChat = () => {
                     />
                   </div>
                   <div>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium">{selectedUser.username}</span>
-                      {selectedUser.verified && (
-                        <MdVerified className="text-blue-500 h-5 w-5" />
-                      )}
-                    </div>
+                    <div className="font-medium">{selectedUser.username}</div>
                     <span className="text-sm text-gray-500">
                       {onlineUsers.includes(selectedUser._id) ? 'Đang hoạt động' : 'Không hoạt động'}
                     </span>
@@ -809,10 +791,7 @@ const AdminChat = () => {
 };
 
 // UserListItem Component
-const UserListItem = ({ user, isSelected, onClick }) => {
-  const onlineUsers = useOnlineStatus();
-  const isOnline = onlineUsers.includes(user._id);
-
+const UserListItem = ({ user, isSelected, onClick, isOnline }) => {
   return (
     <div
       onClick={onClick}
@@ -835,11 +814,8 @@ const UserListItem = ({ user, isSelected, onClick }) => {
             />
           </div>
           <div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center">
               <span className="font-medium text-gray-900">{user.username}</span>
-              {user.verified && (
-                <MdVerified className="h-4 w-4 text-blue-500" />
-              )}
             </div>
             <div className="text-sm text-gray-500 flex items-center space-x-1">
               <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-300'}`} />

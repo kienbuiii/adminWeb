@@ -37,9 +37,8 @@ const apiConfig = {
     users:()=> '/api/admin/users',
     stats: '/api/admin/dashboard-stats',
     getUserStatus:(userId)=>`/api/admin/users/${userId}/status`,
-  
     chatHistory:(userId)=>`/api/admin/chat/${userId}`,
-    // User endpoints
+  
     allUsers: () => '/api/admin/users/all',
     userDetail: (id) => `/api/admin/users/detail/${id}`,
     userPosts: (id) => `/api/admin/users/${id}/posts`,
@@ -68,10 +67,10 @@ const apiConfig = {
       unreadCount: '/api/admin/notifications/unread-count'
     },
     
-    // Thêm endpoint cho online users
+   
     onlineUsers: '/api/admin/online-users',
     
-    // Thêm các endpoints mới cho chat
+    
     chat: {
      
       sendImage: (userId) => `/api/admin/chat/send-image/${userId}`,

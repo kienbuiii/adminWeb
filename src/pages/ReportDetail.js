@@ -44,24 +44,53 @@ const ReportDetail = () => {
 
           // Fetch reporter details
           try {
-            const reporterResponse = await axios.post(
-              `${apiConfig.baseURL}${apiConfig.endpoints.userDetail(reportData.reporter)}`,
-              {},
-              { headers }
-            );
-            
-            if (reporterResponse.data.success) {
-              setReporter(reporterResponse.data.data);
+            // Kiểm tra và lấy reporter ID
+            let reporterId;
+            if (typeof reportData.reporter === 'object' && reportData.reporter._id) {
+              reporterId = reportData.reporter._id;
+            } else if (typeof reportData.reporter === 'string') {
+              reporterId = reportData.reporter;
+            }
+
+            console.log('Reporter ID:', reporterId); // Debug log
+
+            if (reporterId) {
+              const reporterResponse = await axios.post(
+                `${apiConfig.baseURL}${apiConfig.endpoints.userDetail(reporterId)}`,
+                {},
+                { headers }
+              );
+              
+              if (reporterResponse.data.success) {
+                setReporter(reporterResponse.data.data);
+              }
+            } else {
+              console.error('Invalid reporter data:', reportData.reporter);
+              toast.warning('Không tìm thấy thông tin người báo cáo');
             }
           } catch (error) {
             console.error('Error fetching reporter details:', error);
+            console.error('Reporter data:', reportData.reporter); // Debug log
+            toast.error('Không thể tải thông tin người báo cáo');
           }
 
-          // Fetch reported item details based on type
+          // Fetch reported item details
           try {
             if (reportData.itemType === 'User') {
+              let userId;
+              if (typeof reportData.reportedItem === 'object' && reportData.reportedItem._id) {
+                userId = reportData.reportedItem._id;
+              } else if (typeof reportData.reportedItem === 'string') {
+                userId = reportData.reportedItem;
+              }
+
+              if (!userId) {
+                console.error('Invalid user ID:', reportData.reportedItem);
+                return;
+              }
+
               const reportedItemResponse = await axios.post(
-                `${apiConfig.baseURL}${apiConfig.endpoints.userDetail(reportData.reportedItem)}`,
+                `${apiConfig.baseURL}${apiConfig.endpoints.userDetail(userId)}`,
                 {},
                 { headers }
               );
@@ -73,8 +102,20 @@ const ReportDetail = () => {
                 });
               }
             } else if (reportData.itemType === 'Post') {
+              let postId;
+              if (typeof reportData.reportedItem === 'object' && reportData.reportedItem._id) {
+                postId = reportData.reportedItem._id;
+              } else if (typeof reportData.reportedItem === 'string') {
+                postId = reportData.reportedItem;
+              }
+
+              if (!postId) {
+                console.error('Invalid post ID:', reportData.reportedItem);
+                return;
+              }
+
               const reportedItemResponse = await axios.post(
-                `${apiConfig.baseURL}${apiConfig.endpoints.postDetail(reportData.reportedItem)}`,
+                `${apiConfig.baseURL}${apiConfig.endpoints.postDetail(postId)}`,
                 {},
                 { headers }
               );
@@ -192,9 +233,7 @@ const ReportDetail = () => {
               <h4 className="text-lg font-semibold">{reportedItem.username || 'Không có thông tin'}</h4>
               <p className="text-gray-600">{reportedItem.email || 'Không có thông tin'}</p>
               <div className="mt-2 flex space-x-2">
-                <span className="px-2 py-1 bg-gray-100 rounded-full text-sm">
-                  {reportedItem.status === 'active' ? 'Đang hoạt động' : 'Đã khóa'}
-                </span>
+               
                 <span className="px-2 py-1 bg-gray-100 rounded-full text-sm">
                   Tham gia: {new Date(reportedItem.createdAt).toLocaleDateString('vi-VN')}
                 </span>

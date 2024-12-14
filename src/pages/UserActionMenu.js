@@ -137,13 +137,7 @@ const UserActionMenu = ({ userId, username }) => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52 shadow-lg bg-white rounded-md">
-          <DropdownMenuItem
-            onClick={handleMessage}
-            className="flex items-center text-gray-700 hover:bg-gray-100 px-4 py-2 rounded-md"
-          >
-            <MessageCircle className="mr-2 h-5 w-5 text-blue-500" />
-            Nhắn tin
-          </DropdownMenuItem>
+         
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => setShowDisableDialog(true)}
