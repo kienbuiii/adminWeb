@@ -113,12 +113,16 @@ const Notifications = () => {
     console.log('Notification data:', notification);
 
     if (notification.type === 'new_report') {
-      const reportId = notification.reportId || notification._id || notification.id;
+      const reportIdMatch = notification.message.match(/ID: ([a-zA-Z0-9]+)/);
+      const reportId = reportIdMatch ? reportIdMatch[1] : null;
+      
       if (!reportId) {
-        console.error('Report ID not found in notification:', notification);
+        console.error('Report ID not found in notification message:', notification);
         toast.error('Không tìm thấy ID báo cáo');
         return;
       }
+      
+      console.log('Navigating to report:', reportId);
       navigate(`/admin/reports/${reportId}`);
       return;
     }
@@ -126,27 +130,27 @@ const Notifications = () => {
     const navigationMap = {
       'user_report': { 
         screen: '/admin/users', 
-        getId: (notif) => notif.sender || notif.userId
+        getId: (notif) => notif.sender || notif.userId || notif.data?.userId
       },
       'post_report': { 
         screen: '/admin/posts', 
-        getId: (notif) => notif.post || notif.postId
+        getId: (notif) => notif.postId || notif.data?.postId
       },
       'comment_report': { 
         screen: '/admin/comments', 
-        getId: (notif) => notif.comment || notif.commentId
+        getId: (notif) => notif.commentId || notif.data?.commentId
       }
     };
 
     const navConfig = navigationMap[notification.type];
     if (!navConfig) {
-      console.log('Không có điều hướng cho loại thông báo này');
+      console.log('Không có điều hướng cho loại thông báo này:', notification.type);
       return;
     }
 
     const id = navConfig.getId(notification);
     if (!id) {
-      console.error('Invalid ID for navigation:', id);
+      console.error('Invalid ID for navigation:', notification);
       toast.error('Không thể mở nội dung này');
       return;
     }

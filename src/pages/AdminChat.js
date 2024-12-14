@@ -5,10 +5,8 @@ import { vi } from 'date-fns/locale';
 import { MdSearch, MdVerified } from 'react-icons/md';
 import axios from 'axios';
 import apiConfig from '../apiconfig';
-import ImageUploader from '../components/ImageUploader';
 import debounce from 'lodash/debounce';
-import { IoSend, IoImageOutline } from 'react-icons/io5';
-import { BsEmojiSmile } from 'react-icons/bs';
+import { IoSend } from 'react-icons/io5';
 import { MdOutlineMarkUnreadChatAlt } from 'react-icons/md';
 import styles from '../styles/components/AdminChat.module.css';
 
@@ -667,88 +665,6 @@ const AdminChat = () => {
     }
   };
 
-  // Thêm hàm xử lý upload ảnh
-  const handleImageUpload = async (event) => {
-    const files = Array.from(event.target.files);
-    if (files.length === 0) return;
-
-    const validImageTypes = ['image/jpeg', 'image/png', 'image/gif'];
-    const maxSize = 5 * 1024 * 1024; // 5MB
-
-    const validFiles = files.filter(file => 
-      validImageTypes.includes(file.type) && file.size <= maxSize
-    );
-
-    if (validFiles.length === 0) {
-      alert('Vui lòng chọn ảnh có định dạng JPG, PNG hoặc GIF và kích thước dới 5MB');
-      return;
-    }
-
-    try {
-      for (const file of validFiles) {
-        const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-        
-        // Tạo optimistic message
-        const optimisticMessage = {
-          tempId,
-          content: URL.createObjectURL(file),
-          type: 'image',
-          sender: {
-            _id: localStorage.getItem('adminId'),
-            role: 'admin'
-          },
-          receiver: selectedUser._id,
-          createdAt: new Date().toISOString(),
-          status: 'pending',
-          isAdminMessage: true
-        };
-
-        setMessages(prev => [...prev, optimisticMessage]);
-        scrollToBottom();
-
-        try {
-          const reader = new FileReader();
-          const imageDataPromise = new Promise((resolve, reject) => {
-            reader.onloadend = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-
-          const base64Image = await imageDataPromise;
-          const response = await sendAdminImage({
-            userId: selectedUser._id,
-            image: base64Image,
-            adminId: localStorage.getItem('adminId'),
-            tempId
-          });
-
-          // Cập nhật tin nh��n với URL ảnh từ server
-          setMessages(prev => prev.map(msg => 
-            msg.tempId === tempId ? { ...response, status: 'sent' } : msg
-          ));
-        } catch (error) {
-          console.error('Error sending image:', error);
-          setMessages(prev => prev.map(msg => 
-            msg.tempId === tempId 
-              ? { ...msg, status: 'error', error: error.message || 'Lỗi gửi ảnh' } 
-              : msg
-          ));
-        }
-      }
-    } catch (error) {
-      console.error('Error processing images:', error);
-      alert('Có lỗi xảy ra khi xử lý ảnh');
-    } finally {
-      event.target.value = '';
-    }
-  };
-
-  // Thêm hàm xử lý gửi nhiều ảnh (nếu cần)
-  const handleMultipleImagesUpload = async (files) => {
-    // Similar to handleImageUpload but uses sendAdminMultipleImages
-    // ...
-  };
-
   return (
     <div className={styles.container}>
       {/* Sidebar */}
@@ -853,14 +769,6 @@ const AdminChat = () => {
             {/* Input Area */}
             <div className={styles.inputArea}>
               <div className={styles.inputContainer}>
-                <button className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors">
-                  <BsEmojiSmile className="h-5 w-5" />
-                </button>
-                <ImageUploader onImageSelect={handleImageUpload}>
-                  <button className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors">
-                    <IoImageOutline className="h-5 w-5" />
-                  </button>
-                </ImageUploader>
                 <input
                   type="text"
                   value={newMessage}
@@ -902,7 +810,8 @@ const AdminChat = () => {
 
 // UserListItem Component
 const UserListItem = ({ user, isSelected, onClick }) => {
-  const isOnline = useOnlineStatus().includes(user._id);
+  const onlineUsers = useOnlineStatus();
+  const isOnline = onlineUsers.includes(user._id);
 
   return (
     <div

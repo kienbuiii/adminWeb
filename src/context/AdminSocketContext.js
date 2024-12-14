@@ -24,7 +24,7 @@ export const AdminSocketProvider = ({ children }) => {
   useEffect(() => {
     const connectSocket = async () => {
       try {
-        const token = localStorage.getItem('adminToken');
+        const token = localStorage.getItem('token');
         const adminId = localStorage.getItem('adminId');
 
         if (!token || !adminId) {
@@ -38,39 +38,33 @@ export const AdminSocketProvider = ({ children }) => {
           auth: {
             token: token,
             adminId: adminId
-          }
+          },
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
         });
 
-        // Basic socket events
         newSocket.on('connect', () => {
           console.log('Admin socket connected');
           setConnected(true);
           newSocket.emit('admin_connected', adminId);
         });
 
-        // Enhanced online users handling
         newSocket.on('onlineUsers', (users) => {
-          setOnlineUsers(users.map(user => ({
-            ...user,
-            isOnline: true
-          })));
+          console.log('Received online users:', users);
+          setOnlineUsers(users.map(user => user._id));
         });
 
-        newSocket.on('user_status_changed', ({ userId, isOnline, username, avatar, lastActive }) => {
+        newSocket.on('user_status_changed', ({ userId, isOnline }) => {
           setOnlineUsers(prev => {
             if (isOnline) {
-              const exists = prev.some(u => u._id === userId);
-              if (!exists) {
-                return [...prev, { _id: userId, username, avatar, isOnline }];
-              }
-              return prev.map(u => u._id === userId ? { ...u, isOnline } : u);
+              return prev.includes(userId) ? prev : [...prev, userId];
             } else {
-              return prev.map(u => u._id === userId ? { ...u, isOnline, lastActive } : u);
+              return prev.filter(id => id !== userId);
             }
           });
         });
 
-        // Enhanced message handling
         newSocket.on('receive_message', (message) => {
           const formattedMessage = {
             ...message,
@@ -100,7 +94,6 @@ export const AdminSocketProvider = ({ children }) => {
           });
         });
 
-        // Enhanced typing status handling
         newSocket.on('user_typing_status', ({ userId, isTyping }) => {
           newSocket.emit('typing_status_update', {
             userId,
@@ -108,7 +101,6 @@ export const AdminSocketProvider = ({ children }) => {
           });
         });
 
-        // Enhanced conversation updates
         newSocket.on('conversation_updated', (data) => {
           newSocket.emit('conversation_status_update', {
             ...data,
@@ -116,7 +108,6 @@ export const AdminSocketProvider = ({ children }) => {
           });
         });
 
-        // Enhanced read status handling
         newSocket.on('messages_marked_read', ({ byUserId, forUserId }) => {
           newSocket.emit('messages_read_status_update', {
             byUserId,
@@ -132,6 +123,21 @@ export const AdminSocketProvider = ({ children }) => {
           });
         });
 
+        newSocket.on('connect_error', (error) => {
+          console.error('Connection error:', error);
+          setConnected(false);
+        });
+
+        newSocket.on('disconnect', (reason) => {
+          console.log('Socket disconnected:', reason);
+          setConnected(false);
+        });
+
+        newSocket.on('reconnect', (attemptNumber) => {
+          console.log('Socket reconnected after', attemptNumber, 'attempts');
+          setConnected(true);
+        });
+
         setSocket(newSocket);
 
         return () => {
@@ -142,13 +148,13 @@ export const AdminSocketProvider = ({ children }) => {
         };
       } catch (error) {
         console.error('Socket connection error:', error);
+        setConnected(false);
       }
     };
 
     connectSocket();
   }, []);
 
-  // Enhanced message sending with proper error handling
   const sendAdminMessage = (messageData) => {
     if (!socket || !connected) {
       return Promise.reject(new Error('Socket not connected'));
@@ -158,9 +164,8 @@ export const AdminSocketProvider = ({ children }) => {
       const timeout = setTimeout(() => {
         socket.off(`message_sent_${messageData.tempId}`);
         reject(new Error('Message sending timeout'));
-      }, 30000); // Tăng timeout lên 30 giây
+      }, 30000);
 
-      // Lắng nghe event phản hồi cụ thể cho tin nhắn này
       socket.on(`message_sent_${messageData.tempId}`, (response) => {
         clearTimeout(timeout);
         socket.off(`message_sent_${messageData.tempId}`);
@@ -171,7 +176,6 @@ export const AdminSocketProvider = ({ children }) => {
         }
       });
 
-      // Emit với callback
       socket.emit('admin_message', messageData, (ack) => {
         if (ack?.error) {
           clearTimeout(timeout);
@@ -182,13 +186,11 @@ export const AdminSocketProvider = ({ children }) => {
     });
   };
 
-  // Enhanced chat room joining
   const joinAdminChat = (userId) => {
     if (!socket || !connected) return;
     socket.emit('admin_join_chat', userId);
   };
 
-  // Enhanced message read marking
   const markMessagesAsRead = (userId) => {
     if (!socket || !connected) return;
     
@@ -199,13 +201,11 @@ export const AdminSocketProvider = ({ children }) => {
     });
   };
 
-  // Enhanced typing status
   const emitTyping = (userId, isTyping) => {
     if (!socket || !connected) return;
     socket.emit('admin_typing', { userId, isTyping });
   };
 
-  // Thêm hàm xử lý gửi ảnh đơn
   const sendAdminImage = (imageData) => {
     if (!socket || !connected) {
       return Promise.reject(new Error('Socket not connected'));
@@ -215,9 +215,8 @@ export const AdminSocketProvider = ({ children }) => {
       const timeout = setTimeout(() => {
         socket.off(`image_sent_${imageData.tempId}`);
         reject(new Error('Image sending timeout'));
-      }, 60000); // Tăng timeout lên 60 giây cho upload ảnh
+      }, 60000);
 
-      // Lắng nghe event phản hồi cụ thể cho ảnh này
       socket.on(`image_sent_${imageData.tempId}`, (response) => {
         clearTimeout(timeout);
         socket.off(`image_sent_${imageData.tempId}`);
@@ -228,34 +227,11 @@ export const AdminSocketProvider = ({ children }) => {
         }
       });
 
-      // Emit với callback
       socket.emit('admin_send_image', imageData, (ack) => {
         if (ack?.error) {
           clearTimeout(timeout);
           socket.off(`image_sent_${imageData.tempId}`);
           reject(new Error(ack.error));
-        }
-      });
-    });
-  };
-
-  // Thêm hàm xử lý gửi nhiều ảnh
-  const sendAdminMultipleImages = (imagesData) => {
-    if (!socket || !connected) {
-      return Promise.reject(new Error('Socket not connected'));
-    }
-    
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Images sending timeout'));
-      }, 60000);
-
-      socket.emit('admin_send_multiple_images', imagesData, (response) => {
-        clearTimeout(timeout);
-        if (response?.error) {
-          reject(new Error(response.error));
-        } else {
-          resolve(response);
         }
       });
     });
@@ -267,7 +243,7 @@ export const AdminSocketProvider = ({ children }) => {
     onlineUsers,
     sendAdminMessage,
     sendAdminImage,
-    sendAdminMultipleImages,
+    
     joinAdminChat,
     markMessagesAsRead,
     emitTyping

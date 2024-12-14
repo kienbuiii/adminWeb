@@ -56,7 +56,7 @@ const apiConfig = {
       adminAll: '/api/reports/admin/all',
       adminUpdate: (id) => `/api/reports/admin/${id}`,
       adminDelete: (id) => `/api/reports/admin/${id}`,
-      adminDetail: (id) => `/api/reports/admin/${id}`
+      adminDetail: (id) => `/api/reports/admin/detail/${id}`
     },
     
     // Thêm notifications endpoints
