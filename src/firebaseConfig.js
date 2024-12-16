@@ -3,13 +3,13 @@ import { getDatabase, ref, onValue } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyBivfS7XlsYR4gyrzpVqMgEVD3_vDvNcLg",
-    authDomain: "notifycation-9c71a.firebaseapp.com",
-    databaseURL: "https://notifycation-9c71a-default-rtdb.firebaseio.com",
-    projectId: "notifycation-9c71a",
-    storageBucket: "notifycation-9c71a.firebasestorage.app",
-    messagingSenderId: "311969528059",
-    appId: "1:311969528059:web:4001d6c5d813fe4300185e",
+    apiKey: "AIzaSyDxCP_J1Fs2ykvJxJMmhznUlmNFQO1T-5w",
+  authDomain: "notification-44d1b.firebaseapp.com",
+  databaseURL: "https://notification-44d1b-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "notification-44d1b",
+  storageBucket: "notification-44d1b.firebasestorage.app",
+  messagingSenderId: "1040954361921",
+  appId: "1:1040954361921:web:c4ecad2e482aebbc2f9ec0",
 };
 
 // Initialize Firebase
