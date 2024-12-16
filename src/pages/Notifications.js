@@ -137,7 +137,8 @@ const Notifications = () => {
     <div className="notifications-container p-4 max-w-2xl mx-auto">
       <button
         onClick={handleDeleteAllNotifications}
-        className="mb-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+        style={{ marginLeft: '200px' }}
+        className=" mb-4 px-5 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors "
       >
         Xóa tất cả thông báo
       </button>

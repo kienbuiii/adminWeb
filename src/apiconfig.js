@@ -1,9 +1,9 @@
 // apiConfig.js
 const apiConfig = {
   // Sử dụng trực tiếp URL của API
-  baseURL: 'https://www.adminftravel.xyz'||'http://localhost:3000',
+  baseURL: 'https://www.adminftravel.xyz' || 'http://localhost:3000',
   socketUR: 'https://www.adminftravel.xyz',
-  
+
   headers: {
     'Content-Type': 'application/json',
     'Authorization': null
@@ -34,11 +34,11 @@ const apiConfig = {
   // Cập nhật endpoints cho chat
   endpoints: {
     login: '/api/admin/login',
-    users:()=> '/api/admin/users',
+    users: () => '/api/admin/users',
     stats: '/api/admin/dashboard-stats',
-    getUserStatus:(userId)=>`/api/admin/users/${userId}/status`,
-    chatHistory:(userId)=>`/api/admin/chat/${userId}`,
-  
+    getUserStatus: (userId) => `/api/admin/users/${userId}/status`,
+    chatHistory: (userId) => `/api/admin/chat/${userId}`,
+
     allUsers: () => '/api/admin/users/all',
     userDetail: (id) => `/api/admin/users/detail/${id}`,
     userPosts: (id) => `/api/admin/users/${id}/posts`,
@@ -48,16 +48,19 @@ const apiConfig = {
     disableUser: (id) => `/api/admin/users/${id}/disable`,
     enableUser: (id) => `/api/admin/users/${id}/enable`,
     deleteUser: (id) => `/api/admin/users/${id}`,
+    deletePost: (postId) => `/api/admin/deletePost/${postId}`,
+    deleteTravelPost: (postId) => `/api/admin/travel/${postId}`,
     postDetail: (id) => `/api/admin/posts/${id}`,
-    
-    // Report endpoints
+
+
+
     reports: {
       adminAll: '/api/reports/admin/all',
       adminUpdate: (id) => `/api/reports/admin/${id}`,
       adminDelete: (id) => `/api/reports/admin/${id}`,
       adminDetail: (id) => `/api/reports/admin/detail/${id}`
     },
-    
+
     // Thêm notifications endpoints
     notifications: {
       getAll: '/api/admin/notifications',
@@ -66,16 +69,16 @@ const apiConfig = {
       delete: (id) => `/api/admin/notifications/${id}`,
       unreadCount: '/api/admin/notifications/unread-count'
     },
-    
-   
+
+
     onlineUsers: '/api/admin/online-users',
-    
-    
+
+
     chat: {
-     
+
       sendImage: (userId) => `/api/admin/chat/send-image/${userId}`,
       sendMultipleImages: (userId) => `/api/admin/chat/send-multiple-images/${userId}`,
-      
+
     },
   },
 
