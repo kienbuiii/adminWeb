@@ -118,6 +118,7 @@ const Notifications = () => {
     } catch (error) {
       console.error('Navigation error:', error);
       toast.error('Không thể mở nội dung này');
+      
     }
   };
 
@@ -153,9 +154,9 @@ const Notifications = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {notifications.map((notification) => (
+          {notifications.map((notification, index) => (
             <div
-              key={notification._id}
+              key={`${notification._id}-${index}`}
               className={`p-4 rounded-lg shadow-sm bg-white 
                 ${notification.read ? 'opacity-75' : 'opacity-100'}
                 transition-all duration-200 hover:shadow-md cursor-pointer`}
